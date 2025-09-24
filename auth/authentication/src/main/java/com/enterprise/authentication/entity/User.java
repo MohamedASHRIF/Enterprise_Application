@@ -53,4 +53,11 @@ public class User {
     }
 
     // Getters and setters omitted for brevity
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
 }
