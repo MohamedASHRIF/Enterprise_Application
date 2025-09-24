@@ -1,10 +1,9 @@
 package com.enterprise.authentication.util;
 
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.Claims;
-import org.springframework.stereotype.Component;
+import io.jsonwebtoken.Jwts;
 import java.util.Date;
+import org.springframework.stereotype.Component;
 
 @Component
 public class JwtUtil {
