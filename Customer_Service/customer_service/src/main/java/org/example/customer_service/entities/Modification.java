@@ -1,5 +1,6 @@
 package org.example.customer_service.entities;
-
+import org.example.customer_service.models.ServiceType;
+import org.example.customer_service.models.AppointmentStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
