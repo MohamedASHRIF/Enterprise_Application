@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "appointments")
+@Table(name = "modification")
 public class Modification {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
