@@ -1,6 +1,5 @@
 package org.example.customer_service.entities;
-import org.example.customer_service.models.ServiceType;
-import org.example.customer_service.models.AppointmentStatus;
+import org.example.customer_service.models.ModificationStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -9,7 +8,7 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "modification")
+@Table(name = "modifications")
 public class Modification {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,11 +22,14 @@ public class Modification {
     @JoinColumn(name = "vehicle_id", nullable = false)
     private Vehicle vehicle;
 
-    @Enumerated(EnumType.STRING)
-    private ServiceType serviceType;
+    @Column(columnDefinition = "TEXT")
+    private String description;
 
-    private LocalDateTime appointmentDate;
+    private Double estimatedCost;
 
     @Enumerated(EnumType.STRING)
-    private AppointmentStatus status;
+    private ModificationStatus status; // REQUESTED, APPROVED, IN_PROGRESS, COMPLETED, CANCELLED
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }
