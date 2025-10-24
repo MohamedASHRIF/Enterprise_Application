@@ -32,6 +32,7 @@ public class AppointmentService {
 
         appointment.setCustomer(customer);
         appointment.setVehicle(vehicle);
+        appointment.setServiceType(appointment.getServiceType());
         appointment.setStatus(AppointmentStatus.BOOKED);
         return appointmentRepository.save(appointment);
     }

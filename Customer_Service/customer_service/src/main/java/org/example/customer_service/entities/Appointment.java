@@ -4,6 +4,8 @@ import org.example.customer_service.models.ServiceType;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Data
@@ -26,9 +28,18 @@ public class Appointment {
     @Enumerated(EnumType.STRING)
     private ServiceType serviceType;
 
+    @Column(columnDefinition = "TEXT")
+    private String customServiceDescription;
+
     private LocalDateTime appointmentDate;
 
     @Enumerated(EnumType.STRING)
     private AppointmentStatus status;
+
+    @OneToMany(mappedBy = "appointment", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Modification> modifications = new ArrayList<>();
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
 }

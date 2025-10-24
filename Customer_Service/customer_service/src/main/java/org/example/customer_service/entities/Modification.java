@@ -22,6 +22,10 @@ public class Modification {
     @JoinColumn(name = "vehicle_id", nullable = false)
     private Vehicle vehicle;
 
+    @ManyToOne
+    @JoinColumn(name = "appointment_id")
+    private Appointment appointment;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 
