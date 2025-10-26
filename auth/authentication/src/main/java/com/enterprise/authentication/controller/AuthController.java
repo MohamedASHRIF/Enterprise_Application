@@ -24,7 +24,18 @@ public class AuthController {
     public ResponseEntity<?> register(@RequestBody User user) {
         User savedUser = authenticationService.registerUser(user);
         String token = jwtUtil.generateToken(savedUser.getEmail());
-        return ResponseEntity.ok(Map.of("token", token));
+        // Return both token and user data
+        return ResponseEntity.ok(Map.of(
+            "token", token,
+            "user", Map.of(
+                "id", savedUser.getId(),
+                "firstName", savedUser.getFirstName(),
+                "lastName", savedUser.getLastName(),
+                "email", savedUser.getEmail(),
+                "phoneNumber", savedUser.getPhoneNumber() != null ? savedUser.getPhoneNumber() : "",
+                "role", savedUser.getRole().toString()
+            )
+        ));
     }
 
     @PostMapping("/login")
@@ -32,7 +43,21 @@ public class AuthController {
         String email = loginRequest.get("email");
         String password = loginRequest.get("password");
         return authenticationService.authenticate(email, password)
-                .map(user -> ResponseEntity.ok(Map.of("token", jwtUtil.generateToken(user.getEmail()))))
+                .map(user -> {
+                    String token = jwtUtil.generateToken(user.getEmail());
+                    // Return both token and user data
+                    return ResponseEntity.ok(Map.of(
+                        "token", token,
+                        "user", Map.of(
+                            "id", user.getId(),
+                            "firstName", user.getFirstName(),
+                            "lastName", user.getLastName(),
+                            "email", user.getEmail(),
+                            "phoneNumber", user.getPhoneNumber() != null ? user.getPhoneNumber() : "",
+                            "role", user.getRole().toString()
+                        )
+                    ));
+                })
                 .orElseGet(() -> ResponseEntity.status(401).body(Map.of("error", "Invalid credentials")));
     }
 }
