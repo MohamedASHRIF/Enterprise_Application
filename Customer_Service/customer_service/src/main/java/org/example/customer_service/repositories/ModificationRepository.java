@@ -8,12 +8,5 @@ import java.util.List;
 
 @Repository
 public interface ModificationRepository extends JpaRepository<Modification, Long> {
-
-    // Find all modifications for a specific appointment
     List<Modification> findByAppointmentId(Long appointmentId);
-
-    // Find all modifications made by a particular customer
-    List<Modification> findByCustomerId(Long customerId);
-
-    // List<Modification> findByStatus(ModificationStatus status);
 }

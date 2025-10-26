@@ -22,11 +22,7 @@ public class CustomerController {
         return ResponseEntity.ok(savedCustomer);
     }
 
-    // Get all customers
-    @GetMapping
-    public ResponseEntity<List<Customer>> getAllCustomers() {
-        return ResponseEntity.ok(customerService.getAllCustomers());
-    }
+    
 
     // Get customer by ID
     @GetMapping("/{id}")
@@ -41,7 +37,6 @@ public class CustomerController {
         Optional<Customer> customer = customerService.getCustomerByEmail(email);
         return customer.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
-
     // Delete customer
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteCustomer(@PathVariable Long id) {

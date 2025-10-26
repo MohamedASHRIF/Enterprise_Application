@@ -1,8 +1,9 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/Customer_Service
-    username: postgres
-    password: thajee2002
+    url: jdbc:postgresql://dpg-cxxxxxx.render.com:5432/customer_service_pmj0
+    username: customer_service_pmj0_user
+    password: FZLlJkTkMzcGh7HZMfZhiAL9Wg13Ikyx
+    driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
@@ -11,6 +12,3 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-
-server:
-  port: 8081

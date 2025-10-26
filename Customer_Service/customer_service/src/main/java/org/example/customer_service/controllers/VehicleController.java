@@ -1,27 +1,36 @@
 package org.example.customer_service.controllers;
 
+import lombok.RequiredArgsConstructor;
 import org.example.customer_service.entities.Vehicle;
 import org.example.customer_service.services.VehicleService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/vehicles")
+@RequiredArgsConstructor
 public class VehicleController {
 
-    @Autowired
-    private VehicleService vehicleService;
+    private final VehicleService vehicleService;
 
-    @PostMapping("/add/{customerId}")
-    public ResponseEntity<Vehicle> addVehicle(@PathVariable Long customerId, @RequestBody Vehicle vehicle) {
-        return ResponseEntity.ok(vehicleService.addVehicle(customerId, vehicle));
+    @PostMapping
+    public Vehicle addVehicle(@RequestBody Vehicle vehicle) {
+        return vehicleService.addVehicle(vehicle);
     }
 
     @GetMapping("/customer/{customerId}")
-    public ResponseEntity<List<Vehicle>> getVehiclesByCustomer(@PathVariable Long customerId) {
-        return ResponseEntity.ok(vehicleService.getVehiclesByCustomer(customerId));
+    public List<Vehicle> getByCustomer(@PathVariable Long customerId) {
+        return vehicleService.getVehiclesByCustomer(customerId);
+    }
+
+    @PutMapping
+    public Vehicle updateVehicle(@RequestBody Vehicle vehicle) {
+        return vehicleService.updateVehicle(vehicle);
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteVehicle(@PathVariable Long id) {
+        vehicleService.deleteVehicle(id);
     }
 }

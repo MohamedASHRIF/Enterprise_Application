@@ -1,6 +1,8 @@
 package org.example.customer_service.entities;
 
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -29,14 +31,10 @@ public class Customer {
     private String password;
 
     // One customer → many vehicles
-    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "customerId", cascade = CascadeType.ALL)
     private List<Vehicle> vehicles;
 
     // One customer → many appointments
-    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "customerId", cascade = CascadeType.ALL)
     private List<Appointment> appointments;
-
-    // One customer → many modifications
-    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
-    private List<Modification> modifications;
 }

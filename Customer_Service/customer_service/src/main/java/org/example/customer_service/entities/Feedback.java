@@ -15,9 +15,8 @@ public class Feedback {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne
-    @JoinColumn(name = "appointment_id", nullable = false)
-    private Appointment appointment;
+    @Column(name = "appointment_id")
+    private Long appointmentId;
 
     private int rating;
 

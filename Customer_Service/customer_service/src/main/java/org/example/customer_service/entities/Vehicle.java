@@ -1,4 +1,7 @@
 package org.example.customer_service.entities;
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -22,15 +25,14 @@ public class    Vehicle {
     private String registrationNo;
 
     // Many vehicles belong to one customer
-    @ManyToOne
-    @JoinColumn(name = "customer_id", nullable = false)
-    private Customer customer;
+    @Column(name = "customer_id", nullable = false)
+    private long customerId;
 
     // One vehicle → many appointments
-    @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "vehicleId", cascade = CascadeType.ALL)
     private List<Appointment> appointments;
 
-    // One vehicle → many modifications
-    @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL)
-    private List<Modification> modifications;
+//    // One vehicle → many modifications
+//    @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL)
+//    private List<Modification> modifications;
 }
