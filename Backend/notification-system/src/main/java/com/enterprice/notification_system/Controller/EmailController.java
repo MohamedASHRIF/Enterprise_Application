@@ -1,4 +1,4 @@
-package com.enterprice.notification_system;
+package com.enterprice.notification_system.Controller;
 
 import com.enterprice.notification_system.DTO.EmailRequestDTO;
 import com.enterprice.notification_system.Service.EmailProducer;

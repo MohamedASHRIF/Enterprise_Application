@@ -42,7 +42,7 @@ public class EmailConsumer {
     }
 
     private void sendEmail(EmailRequestDTO dto) throws IOException {
-        Email from = new Email("noreply@autocare.com");
+        Email from = new Email("petergwenstacy123@gmail.com");
         Email to = new Email(dto.getToMail());
         Content content = new Content("text/plain", dto.getBody());
         Mail mail = new Mail(from, dto.getSubject(), to, content);
