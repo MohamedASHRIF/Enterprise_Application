@@ -1,7 +1,7 @@
 package com.enterprice.notification_system.Service;
 
 import com.enterprice.notification_system.Config.RabbitMQConfig;
-import com.enterprice.notification_system.EmailRequestDTO;
+import com.enterprice.notification_system.DTO.EmailRequestDTO;
 import com.enterprice.notification_system.Entity.EmailLog;
 import com.enterprice.notification_system.Repository.EmailLogRepository;
 import com.sendgrid.Method;
