@@ -35,7 +35,30 @@ export default function Home() {
           }));
         }
         
-        window.location.href='/Dashboard';
+        // Role-based redirect
+        const userRole = res.data.user?.role || res.data.user?.role?.toUpperCase() || 'CUSTOMER';
+        let redirectPath = '/Dashboard';
+        
+        console.log('User role for redirect:', userRole);
+        
+        switch(userRole.toUpperCase()) {
+          case 'ADMIN':
+            redirectPath = '/Dashboard/admin/employees';
+            console.log('Redirecting to admin dashboard');
+            break;
+          case 'EMPLOYEE':
+            redirectPath = '/Dashboard/employee/assignments';
+            console.log('Redirecting to employee dashboard');
+            break;
+          case 'CUSTOMER':
+          default:
+            redirectPath = '/Dashboard';
+            console.log('Redirecting to customer dashboard');
+            break;
+        }
+        
+        console.log('Final redirect path:', redirectPath);
+        window.location.href = redirectPath;
       } else {
         throw new Error('Invalid response from server');
       }
@@ -131,7 +154,7 @@ export default function Home() {
         </form>
         
         <div className="mt-8 text-center relative z-10">
-          <span className="text-gray-700 font-medium">Don't have an account? </span>
+          <span className="text-gray-700 font-medium">Don&apos;t have an account? </span>
           <a className="text-indigo-700 hover:text-indigo-900 font-bold transition-colors underline decoration-2 underline-offset-2 hover:decoration-indigo-900" href="/Register">Sign Up</a>
         </div>
       </div>

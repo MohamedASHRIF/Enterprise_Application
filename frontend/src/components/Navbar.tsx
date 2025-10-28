@@ -131,10 +131,34 @@ export default function Navbar() {
                     {/* Navigation Links */}
                     <div className="hidden md:flex items-center space-x-8">
                         <a href="/Dashboard" className={getNavLinkClass('/Dashboard')}>Dashboard</a>
-                        <a href="/Dashboard/appointments" className={getNavLinkClass('/Dashboard/appointments')}>My Appointments</a>
-                        <a href="/Dashboard/book-service" className={getNavLinkClass('/Dashboard/book-service')}>Book Service</a>
-                        <a href="/Dashboard/vehicles" className={getNavLinkClass('/Dashboard/vehicles')}>My Vehicles</a>
-                        <a href="/Dashboard/history" className={getNavLinkClass('/Dashboard/history')}>History</a>
+                        
+                        {/* Admin-specific links */}
+                        {user?.role?.toUpperCase() === 'ADMIN' && (
+                            <>
+                                <a href="/Dashboard/admin/employees" className={getNavLinkClass('/Dashboard/admin/employees')}>Employee Management</a>
+                                <a href="/Dashboard/admin/services" className={getNavLinkClass('/Dashboard/admin/services')}>Services</a>
+                            </>
+                        )}
+                        
+                        {/* Employee-specific links */}
+                        {user?.role?.toUpperCase() === 'EMPLOYEE' && (
+                            <>
+                                <a href="/Dashboard/employee/assignments" className={getNavLinkClass('/Dashboard/employee/assignments')}>My Assignments</a>
+                                <a href="/Dashboard/employee/schedule" className={getNavLinkClass('/Dashboard/employee/schedule')}>Schedule</a>
+                            </>
+                        )}
+                        
+                        {/* Customer-specific links */}
+                        {user?.role?.toUpperCase() === 'CUSTOMER' && (
+                            <>
+                                <a href="/Dashboard/appointments" className={getNavLinkClass('/Dashboard/appointments')}>My Appointments</a>
+                                <a href="/Dashboard/book-service" className={getNavLinkClass('/Dashboard/book-service')}>Book Service</a>
+                                <a href="/Dashboard/vehicles" className={getNavLinkClass('/Dashboard/vehicles')}>My Vehicles</a>
+                                <a href="/Dashboard/history" className={getNavLinkClass('/Dashboard/history')}>History</a>
+                            </>
+                        )}
+                        
+                        {/* Common link for all roles */}
                         <a href="/Dashboard/profile" className={getNavLinkClass('/Dashboard/profile')}>Profile</a>
                     </div>
 
