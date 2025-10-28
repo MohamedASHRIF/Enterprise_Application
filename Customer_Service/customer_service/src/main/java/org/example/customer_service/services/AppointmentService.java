@@ -16,7 +16,7 @@ public class AppointmentService {
     private final AppointmentRepository appointmentRepository;
 
     public Appointment bookAppointment(Appointment appointment) {
-        appointment.setStatus(AppointmentStatus.PENDING);
+        appointment.setStatus(AppointmentStatus.SCHEDULED);
         appointment.setCreatedAt(LocalDateTime.now());
         appointment.setUpdatedAt(LocalDateTime.now());
         return appointmentRepository.save(appointment);
