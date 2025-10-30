@@ -9,6 +9,13 @@ import Navbar from "@/components/Navbar";
 
 export default function Dashboard() {
     const [userName, setUserName] = useState('User');
+    const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
+    const [newVehicle, setNewVehicle] = useState({
+        make: '',
+        model: '',
+        year: '',
+        plate: ''
+    });
 
     useEffect(() => {
         // Fetch real user data from localStorage
@@ -55,10 +62,29 @@ export default function Dashboard() {
         completed: 5
     });
 
-    const [vehicles] = useState([
+    const [vehicles, setVehicles] = useState([
         { id: 1, make: "Toyota", model: "Camry", year: "2021", plate: "ABC-1234" },
         { id: 2, make: "Honda", model: "Civic", year: "2020", plate: "XYZ-5678" }
     ]);
+
+    const handleAddVehicle = () => {
+        if (newVehicle.make && newVehicle.model && newVehicle.year && newVehicle.plate) {
+            const newId = vehicles.length > 0 ? Math.max(...vehicles.map(v => v.id)) + 1 : 1;
+            const vehicle = {
+                id: newId,
+                make: newVehicle.make,
+                model: newVehicle.model,
+                year: newVehicle.year,
+                plate: newVehicle.plate
+            };
+            setVehicles([...vehicles, vehicle]);
+            setNewVehicle({ make: '', model: '', year: '', plate: '' });
+            setShowAddVehicleModal(false);
+            alert('Vehicle added successfully!');
+        } else {
+            alert('Please fill in all fields');
+        }
+    };
 
     return (
         <div className="min-h-screen bg-gray-950">
@@ -201,7 +227,10 @@ export default function Dashboard() {
                                 ))}
                             </div>
 
-                            <button className="mt-4 w-full py-2 border-2 border-gray-700 hover:border-cyan-500 text-gray-300 hover:text-cyan-400 rounded-lg transition font-medium">
+                            <button 
+                                onClick={() => setShowAddVehicleModal(true)}
+                                className="mt-4 w-full py-2 border-2 border-gray-700 hover:border-cyan-500 text-gray-300 hover:text-cyan-400 rounded-lg transition font-medium"
+                            >
                                 + Add Vehicle
                             </button>
                         </div>
@@ -242,6 +271,86 @@ export default function Dashboard() {
                     </div>
                 </div>
             </div>
+
+            {/* Add Vehicle Modal */}
+            {showAddVehicleModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full mx-4 border border-gray-800">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-white">Add New Vehicle</h2>
+                            <button 
+                                onClick={() => setShowAddVehicleModal(false)}
+                                className="text-gray-400 hover:text-white"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-gray-400 text-sm mb-2">Make</label>
+                                <input
+                                    type="text"
+                                    value={newVehicle.make}
+                                    onChange={(e) => setNewVehicle({...newVehicle, make: e.target.value})}
+                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                                    placeholder="e.g., Toyota"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-400 text-sm mb-2">Model</label>
+                                <input
+                                    type="text"
+                                    value={newVehicle.model}
+                                    onChange={(e) => setNewVehicle({...newVehicle, model: e.target.value})}
+                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                                    placeholder="e.g., Camry"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-400 text-sm mb-2">Year</label>
+                                <input
+                                    type="text"
+                                    value={newVehicle.year}
+                                    onChange={(e) => setNewVehicle({...newVehicle, year: e.target.value})}
+                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                                    placeholder="e.g., 2021"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-400 text-sm mb-2">License Plate</label>
+                                <input
+                                    type="text"
+                                    value={newVehicle.plate}
+                                    onChange={(e) => setNewVehicle({...newVehicle, plate: e.target.value})}
+                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                                    placeholder="e.g., ABC-1234"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => {
+                                    setShowAddVehicleModal(false);
+                                    setNewVehicle({ make: '', model: '', year: '', plate: '' });
+                                }}
+                                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleAddVehicle}
+                                className="flex-1 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-lg transition"
+                            >
+                                Add Vehicle
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
