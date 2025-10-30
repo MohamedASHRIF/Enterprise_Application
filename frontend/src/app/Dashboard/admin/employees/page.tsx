@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
-// import api from "../../../api/api"; // Uncomment when wiring real backend
+import api from "../../../api/api"; // Uncomment when wiring real backend
 
 interface Employee {
     id: number;
@@ -27,6 +27,15 @@ interface AssignmentLogEntry {
     status?: string;
     minutesLogged?: number;
 }
+
+interface EmployeeStats {
+    totalEmployees: number;
+    activeEmployees: number;
+    mechanics: number;
+    technicians: number;
+    }
+
+
 
 interface EmployeeAssignment {
     id: string;
@@ -59,6 +68,7 @@ export default function AdminEmployeeManagement() {
     const [newAssigneeId, setNewAssigneeId] = useState<number | null>(null);
     const [showLogsModal, setShowLogsModal] = useState(false);
     const [selectedAssignmentForLogs, setSelectedAssignmentForLogs] = useState<EmployeeAssignment | null>(null);
+    const [stats, setStats] = useState<EmployeeStats | null>(null);
 
     // Form state for create/edit
     const [formData, setFormData] = useState({
@@ -69,6 +79,19 @@ export default function AdminEmployeeManagement() {
         role: "EMPLOYEE",
     });
 
+
+    const fetchEmployeeStats = async () => {
+    try {
+        // Assumes your api client is imported
+        const response = await api.get('/employees/stats'); 
+        setStats(response.data);  
+    } catch (error) {
+        console.error("Error fetching stats:", error);
+        // Don't show an alert, the page can still work
+    }
+};
+
+    
     useEffect(() => {
         // Check if user is authenticated and has ADMIN role
         const storedUser = localStorage.getItem('user');
@@ -91,7 +114,7 @@ export default function AdminEmployeeManagement() {
                 window.location.href = '/Dashboard';
                 return;
             }
-
+            fetchEmployeeStats();
             fetchEmployees();
         } catch (error) {
             console.error('Error parsing user data:', error);
@@ -99,6 +122,8 @@ export default function AdminEmployeeManagement() {
             localStorage.removeItem('token');
             window.location.href = '/';
         }
+
+        
     }, []);
 
     // Filter employees based on search, role, and status
@@ -467,24 +492,24 @@ export default function AdminEmployeeManagement() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
                         <p className="text-gray-400 text-sm">Total Employees</p>
-                        <p className="text-3xl font-bold text-white mt-2">{employees.length}</p>
+                        <p className="text-3xl font-bold text-white mt-2">{stats ? stats.totalEmployees : '...'}</p>
                     </div>
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
                         <p className="text-gray-400 text-sm">Active Employees</p>
                         <p className="text-3xl font-bold text-green-500 mt-2">
-                            {employees.filter(e => e.isActive).length}
+                            {stats ? stats.activeEmployees : '...'}
                         </p>
                     </div>
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
                         <p className="text-gray-400 text-sm">Mechanics</p>
                         <p className="text-3xl font-bold text-blue-500 mt-2">
-                            {employees.filter(e => e.role === 'MECHANIC').length}
+                            {stats ? stats.mechanics : '...'}
                         </p>
                     </div>
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
                         <p className="text-gray-400 text-sm">Technicians</p>
                         <p className="text-3xl font-bold text-purple-500 mt-2">
-                            {employees.filter(e => e.role === 'TECHNICIAN').length}
+                            {stats ? stats.technicians : '...'}
                         </p>
                     </div>
                 </div>
