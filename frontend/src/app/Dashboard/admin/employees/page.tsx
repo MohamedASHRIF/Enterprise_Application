@@ -9,7 +9,8 @@ interface Employee {
     lastName: string;
     email: string;
     phoneNumber: string;
-    role: string;
+    role: string; // backend Role (EMPLOYEE/ADMIN) or jobTitle for display
+    jobTitle?: string;
     isActive: boolean;
     createdAt: string;
 }
@@ -144,104 +145,31 @@ export default function AdminEmployeeManagement() {
     const fetchEmployees = async () => {
         setIsLoading(true);
         try {
-            // TODO: Replace with actual API endpoint
-            // const response = await api.get('/auth/employees');
-            // setEmployees(response.data);
-            
-            // Mock data for now
-            const mockEmployees: Employee[] = [
-                {
-                    id: 1,
-                    firstName: "John",
-                    lastName: "Doe",
-                    email: "john.doe@autoshop.com",
-                    phoneNumber: "+1 234-567-8900",
-                    role: "MECHANIC",
-                    isActive: true,
-                    createdAt: "2024-01-15",
-                },
-                {
-                    id: 2,
-                    firstName: "Sarah",
-                    lastName: "Smith",
-                    email: "sarah.smith@autoshop.com",
-                    phoneNumber: "+1 234-567-8901",
-                    role: "TECHNICIAN",
-                    isActive: true,
-                    createdAt: "2024-02-20",
-                },
-                {
-                    id: 3,
-                    firstName: "Mike",
-                    lastName: "Johnson",
-                    email: "mike.johnson@autoshop.com",
-                    phoneNumber: "+1 234-567-8902",
-                    role: "MECHANIC",
-                    isActive: false,
-                    createdAt: "2023-12-10",
-                },
-            ];
-            setEmployees(mockEmployees);
-
-            // Mock metrics (replace with API aggregation later)
-            const mockMetrics: Record<number, EmployeeMetrics> = {
-                1: { totalAssignments: 12, inProgress: 2, completionRatePct: 92, averageCompletionMins: 58 },
-                2: { totalAssignments: 9, inProgress: 1, completionRatePct: 88, averageCompletionMins: 65 },
-                3: { totalAssignments: 5, inProgress: 0, completionRatePct: 76, averageCompletionMins: 72 },
+            const params: any = {
+                search: searchTerm || undefined,
+                role: filterRole && filterRole !== "ALL" ? filterRole : undefined,
+                status: filterStatus && filterStatus !== "ALL" ? filterStatus : undefined,
+                page: 0,
+                size: 20,
             };
-            setEmployeeMetricsById(mockMetrics);
 
-            // Mock assignments with logs
-            const now = new Date();
-            const iso = (d: Date) => d.toISOString();
-            const mockAssignments: Record<number, EmployeeAssignment[]> = {
-                1: [
-                    {
-                        id: 'APT-1001',
-                        service: 'Brake Inspection',
-                        customer: 'Alice Martin',
-                        vehicle: 'Toyota Corolla 2020',
-                        scheduledAt: iso(new Date(now.getTime() + 60 * 60 * 1000)),
-                        status: 'Scheduled',
-                        assignedEmployeeId: 1,
-                        timeLoggedMins: 0,
-                        logs: [
-                            { timestamp: iso(new Date(now.getTime() - 24 * 60 * 60 * 1000)), message: 'Appointment created', status: 'Scheduled' },
-                        ],
-                    },
-                    {
-                        id: 'APT-1002',
-                        service: 'Oil Change',
-                        customer: 'Bob Lee',
-                        vehicle: 'Honda Accord 2019',
-                        scheduledAt: iso(new Date(now.getTime() - 2 * 60 * 60 * 1000)),
-                        status: 'In Progress',
-                        assignedEmployeeId: 1,
-                        timeLoggedMins: 35,
-                        logs: [
-                            { timestamp: iso(new Date(now.getTime() - 3 * 60 * 60 * 1000)), message: 'Checked in', status: 'Scheduled' },
-                            { timestamp: iso(new Date(now.getTime() - 2 * 60 * 60 * 1000)), message: 'Work started', status: 'In Progress' },
-                        ],
-                    },
-                ],
-                2: [
-                    {
-                        id: 'APT-1003',
-                        service: 'Tire Rotation',
-                        customer: 'Charlie Young',
-                        vehicle: 'Ford Focus 2018',
-                        scheduledAt: iso(new Date(now.getTime() + 3 * 60 * 60 * 1000)),
-                        status: 'Scheduled',
-                        assignedEmployeeId: 2,
-                        timeLoggedMins: 0,
-                        logs: [
-                            { timestamp: iso(new Date(now.getTime() - 12 * 60 * 60 * 1000)), message: 'Appointment created', status: 'Scheduled' },
-                        ],
-                    },
-                ],
-                3: [],
-            };
-            setAssignmentsByEmployeeId(mockAssignments);
+            const response = await api.get('/employees', { params });
+            const content: any[] = response.data?.content || response.data || [];
+            const normalized: Employee[] = content.map((e) => ({
+                id: e.id,
+                firstName: e.firstName,
+                lastName: e.lastName,
+                email: e.email,
+                phoneNumber: e.phoneNumber,
+                role: e.jobTitle || e.role,
+                jobTitle: e.jobTitle,
+                isActive: e.isActive,
+                createdAt: e.createdAt,
+            }));
+            setEmployees(normalized);
+            // Reset any mock metrics when real data is loaded
+            setEmployeeMetricsById({});
+            setAssignmentsByEmployeeId({});
         } catch (error) {
             console.error("Error fetching employees:", error);
             alert("Failed to fetch employees. Please try again.");
@@ -309,28 +237,34 @@ export default function AdminEmployeeManagement() {
 
     const handleCreateEmployee = async (e: React.FormEvent) => {
         e.preventDefault();
+        // simple client validations
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            alert('Please enter a valid email');
+            return;
+        }
+        if (formData.phoneNumber && !/^\+?[1-9]\d{7,14}$/.test(formData.phoneNumber)) {
+            alert('Phone must be E.164 format, e.g. +1234567890');
+            return;
+        }
+
         setIsLoading(true);
-        
         try {
-            // TODO: Replace with actual API endpoint
-            // const response = await api.post('/auth/create-employee', formData);
-            // console.log('Employee created:', response.data);
-            
-            // Mock response for now
-            const newEmployee: Employee = {
-                id: employees.length + 1,
-                ...formData,
-                isActive: true,
-                createdAt: new Date().toISOString().split('T')[0],
+            const payload = {
+                firstName: formData.firstName,
+                lastName: formData.lastName,
+                email: formData.email,
+                phoneNumber: formData.phoneNumber || undefined,
+                jobTitle: formData.role,
             };
-            
-            setEmployees([...employees, newEmployee]);
+            await api.post('/employees', payload);
             setShowCreateModal(false);
             resetForm();
-            alert("Employee created successfully! Welcome email will be sent.");
-        } catch (error) {
-            console.error("Error creating employee:", error);
-            alert("Failed to create employee. Please try again.");
+            await Promise.all([fetchEmployees(), fetchEmployeeStats()]);
+            alert('Employee created successfully');
+        } catch (err: any) {
+            console.error('Error creating employee:', err);
+            const msg = err?.response?.data?.message || 'Failed to create employee.';
+            alert(msg);
         } finally {
             setIsLoading(false);
         }
@@ -545,7 +479,7 @@ export default function AdminEmployeeManagement() {
                                 <option value="ALL">All Roles</option>
                                 <option value="MECHANIC">Mechanic</option>
                                 <option value="TECHNICIAN">Technician</option>
-                                <option value="EMPLOYEE">General Employee</option>
+                                <option value="GENERAL">General Employee</option>
                             </select>
                         </div>
 
