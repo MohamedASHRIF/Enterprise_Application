@@ -46,6 +46,13 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
+    // --- NEW FIELD ---
+    // This field will store "MECHANIC", "TECHNICIAN", "GENERAL EMPLOYEE", etc.
+    @Column(length = 50)
+    private String jobTitle;
+
+    // --- END NEW FIELD ---
+
     private Boolean isActive = true;
 
     private LocalDateTime createdAt;
@@ -118,6 +125,16 @@ public class User {
     public void setRole(Role role) {
         this.role = role;
     }
+
+    // --- GETTER/SETTER FOR NEW FIELD ---
+    public String getJobTitle() {
+        return jobTitle;
+    }
+
+    public void setJobTitle(String jobTitle) {
+        this.jobTitle = jobTitle;
+    }
+    // --- END GETTER/SETTER ---
 
     public Boolean getIsActive() {
         return isActive;
