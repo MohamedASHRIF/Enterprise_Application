@@ -137,6 +137,7 @@ export default function Navbar() {
                             <>
                                 <a href="/Dashboard/admin/employees" className={getNavLinkClass('/Dashboard/admin/employees')}>Employee Management</a>
                                 <a href="/Dashboard/admin/services" className={getNavLinkClass('/Dashboard/admin/services')}>Services</a>
+                                <a href="/Dashboard/admin/reports" className={getNavLinkClass('/Dashboard/admin/reports')}>Reports</a>
                             </>
                         )}
                         
