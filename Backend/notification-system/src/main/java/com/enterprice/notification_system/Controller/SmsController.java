@@ -1,5 +1,6 @@
 package com.enterprice.notification_system.Controller;
 
+import com.enterprice.notification_system.DTO.SmsRequestDTO;
 import com.enterprice.notification_system.Service.SmsService;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,7 +15,7 @@ public class SmsController {
     }
 
     @PostMapping("/send")
-    public String sendSms(@RequestParam String toNumber, @RequestParam String message) {
-        return smsService.sendSms(toNumber, message);
+    public String sendSms(@RequestBody SmsRequestDTO smsRequestDTO) {
+        return smsService.sendSms(smsRequestDTO.getToNumber(), smsRequestDTO.getMessage());
     }
 }
