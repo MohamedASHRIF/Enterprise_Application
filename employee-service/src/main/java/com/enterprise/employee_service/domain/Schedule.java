@@ -6,8 +6,11 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 @Entity
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Table(name = "schedules")
 public class Schedule {
 
@@ -15,10 +18,15 @@ public class Schedule {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Reference to employee from Auth Service
+    @Column(nullable = false)
     private Long employeeId;
 
+    @Column(nullable = false)
     private LocalDate date;
+
+    @Column(nullable = false)
     private LocalTime shiftStart;
+
+    @Column(nullable = false)
     private LocalTime shiftEnd;
 }
