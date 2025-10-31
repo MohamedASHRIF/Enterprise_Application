@@ -5,8 +5,11 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Table(name = "assignments")
 public class Assignment {
 
@@ -14,13 +17,14 @@ public class Assignment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Reference ID from customer/appointment service
+    @Column(nullable = false)
     private Long appointmentId;
 
-    // Reference to employee from Auth Service
+    @Column(nullable = false)
     private Long employeeId;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private AssignmentStatus status;
 
     private LocalDateTime createdAt;
