@@ -5,8 +5,11 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Table(name = "time_logs")
 public class TimeLog {
 
@@ -15,7 +18,7 @@ public class TimeLog {
     private Long id;
 
     @ManyToOne(optional = false)
-    @JoinColumn(name = "assignment_id")
+    @JoinColumn(name = "assignment_id", nullable = false)
     private Assignment assignment;
 
     private LocalDateTime startTime;
