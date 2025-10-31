@@ -1,7 +1,5 @@
 package org.example.customer_service.entities;
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
+
 import org.example.customer_service.models.ModificationStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -17,17 +15,19 @@ public class Modification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-//    @ManyToOne
-//    @JoinColumn(name = "customer_id", nullable = false)
-//    private Customer customer;
 
 
-    @Column(name = "vehicle_id", nullable = false)
-    private Long vehicleId;
+//    @Column(name = "vehicle_id", nullable = false)
+//    private Long vehicleId;
 
 
     @Column(name = "appointment_id", nullable = false)
     private Long appointmentId;
+
+
+    @ManyToOne
+    @JoinColumn(name = "service_id", nullable = false)
+    private Service service;
 
     @Column(columnDefinition = "TEXT")
     private String description;

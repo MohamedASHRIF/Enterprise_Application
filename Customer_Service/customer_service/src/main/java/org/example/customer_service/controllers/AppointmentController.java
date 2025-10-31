@@ -29,4 +29,23 @@ public class AppointmentController {
     public Appointment updateStatus(@PathVariable Long id, @RequestParam AppointmentStatus status) {
         return appointmentService.updateAppointmentStatus(id, status);
     }
+    @GetMapping("/count")
+    public Long getAppointmentCountByStatus(@RequestParam AppointmentStatus status) {
+        return appointmentService.getAppointmentCountByStatus(status);
+    }
+    @GetMapping("/{id}")
+    public Appointment getAppointmentById(@PathVariable Long id) {
+        return appointmentService.getAppointmentById(id)
+                .orElseThrow(() -> new RuntimeException("Appointment not found with ID: " + id));
+    }
+
+    @DeleteMapping("/{id}")
+    public String deleteAppointment(@PathVariable Long id) {
+        boolean deleted = appointmentService.deleteAppointment(id);
+        if (deleted) {
+            return "Appointment deleted successfully with ID: " + id;
+        } else {
+            return "Appointment not found with ID: " + id;
+        }
+    }
 }

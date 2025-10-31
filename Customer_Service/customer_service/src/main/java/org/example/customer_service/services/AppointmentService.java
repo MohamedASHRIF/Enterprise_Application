@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -16,7 +17,7 @@ public class AppointmentService {
     private final AppointmentRepository appointmentRepository;
 
     public Appointment bookAppointment(Appointment appointment) {
-        appointment.setStatus(AppointmentStatus.PENDING);
+        appointment.setStatus(AppointmentStatus.SCHEDULED);
         appointment.setCreatedAt(LocalDateTime.now());
         appointment.setUpdatedAt(LocalDateTime.now());
         return appointmentRepository.save(appointment);
@@ -32,5 +33,20 @@ public class AppointmentService {
         appointment.setStatus(status);
         appointment.setUpdatedAt(LocalDateTime.now());
         return appointmentRepository.save(appointment);
+    }
+    public Long getAppointmentCountByStatus(AppointmentStatus status) {
+        return appointmentRepository.countByStatus(status);
+    }
+
+    public Optional<Appointment> getAppointmentById(Long id) {
+        return appointmentRepository.findById(id);
+    }
+
+    public boolean deleteAppointment(Long id) {
+        if (appointmentRepository.existsById(id)) {
+            appointmentRepository.deleteById(id);
+            return true;
+        }
+        return false;
     }
 }
