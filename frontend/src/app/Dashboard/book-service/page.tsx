@@ -1,7 +1,8 @@
 "use client"
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { defaultServices, formatDuration } from "@/lib/services";
 
 // Backend Integration: GET /api/services
 
@@ -17,14 +18,18 @@ export default function BookServicePage() {
         { id: 2, make: "Honda", model: "Civic", year: "2020", plate: "XYZ-5678" }
     ]);
 
-    const [services] = useState([
-        { id: 1, name: "Oil Change", description: "Standard oil and filter change", duration: "30 min", price: "$29.99", category: "Maintenance" },
-        { id: 2, name: "Tire Rotation", description: "Rotate all four tires", duration: "15 min", price: "$19.99", category: "Maintenance" },
-        { id: 3, name: "Brake Inspection", description: "Complete brake system check", duration: "45 min", price: "$49.99", category: "Inspection" },
-        { id: 4, name: "Battery Replacement", description: "Test and replace battery if needed", duration: "30 min", price: "$149.99", category: "Repair" },
-        { id: 5, name: "Full Service", description: "Complete vehicle inspection and tune-up", duration: "2 hours", price: "$199.99", category: "Full Service" },
-        { id: 6, name: "AC Service", description: "AC system cleaning and recharge", duration: "1 hour", price: "$79.99", category: "Repair" }
-    ]);
+    const services = useMemo(() =>
+        defaultServices
+            .filter(s => s.active)
+            .map(s => ({
+                id: s.id,
+                name: s.name,
+                description: s.description,
+                duration: formatDuration(s.estimateMins),
+                price: `$${s.cost.toFixed(2)}`,
+                category: s.category || ""
+            })),
+    []);
 
     const handleContinue = () => {
         if (!selectedVehicle || !selectedService) {
