@@ -2,28 +2,122 @@ package com.enterprise.employee_service.service;
 
 import com.enterprise.employee_service.domain.*;
 import com.enterprise.employee_service.repository.AssignmentRepository;
+import com.enterprise.employee_service.repository.ScheduleRepository;
+import com.enterprise.employee_service.web.dto.AppointmentRequestDto;
 import com.enterprise.employee_service.web.dto.UserDto;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-
+import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class AssignmentService {
-    private final AssignmentRepository assignmentRepository;
-    private final EmployeeService employeeService; // to fetch employee info from Auth
 
-    public AssignmentService(AssignmentRepository assignmentRepository, EmployeeService employeeService) {
+    private static final Logger log = LoggerFactory.getLogger(AssignmentService.class);
+
+    private final AssignmentRepository assignmentRepository;
+    private final EmployeeService employeeService;
+    private final ScheduleRepository scheduleRepository;
+    private final NotificationClient notificationClient; // ✅ added
+
+    public AssignmentService(AssignmentRepository assignmentRepository,
+                             EmployeeService employeeService,
+                             ScheduleRepository scheduleRepository,
+                             NotificationClient notificationClient) {
         this.assignmentRepository = assignmentRepository;
         this.employeeService = employeeService;
+        this.scheduleRepository = scheduleRepository;
+        this.notificationClient = notificationClient;
     }
 
+    // Manual assignment
     public Assignment assign(Long employeeId, Long appointmentId) {
-        // Directly assign without local Employee entity
-        Assignment a = Assignment.builder()
+        Assignment assignment = Assignment.builder()
+                .employeeId(employeeId)
                 .appointmentId(appointmentId)
                 .status(AssignmentStatus.ASSIGNED)
                 .build();
-        return assignmentRepository.save(a);
+
+        assignmentRepository.save(assignment);
+
+        // ✅ Send notification to employee (example)
+        notificationClient.sendEmail(
+                "employee" + employeeId + "@example.com",
+                "New Assignment",
+                "You have been assigned to appointment ID: " + appointmentId
+        );
+
+        notificationClient.sendSMS(
+                "+94712345678", // you can later map employee phone number dynamically
+                "New assignment: Appointment ID " + appointmentId
+        );
+
+        log.info("📩 Notification sent for manual assignment to employee {}", employeeId);
+
+        return assignment;
+    }
+
+    // Auto-assign based on availability and job title
+    public Assignment assignToAvailableEmployee(Long appointmentId, String requiredJobTitle, LocalDate appointmentDate) {
+        List<UserDto> employees = employeeService.getEmployeesByJobTitle(requiredJobTitle);
+        if (employees.isEmpty()) {
+            throw new RuntimeException("No employees found with job title: " + requiredJobTitle);
+        }
+
+        Optional<UserDto> selectedEmployee = employees.stream()
+                .filter(emp -> {
+                    var schedules = scheduleRepository.findByEmployeeIdAndDate(emp.getId(), appointmentDate);
+                    return schedules == null || schedules.isEmpty(); // available if no schedule found
+                })
+                .min(Comparator.comparingInt(emp -> assignmentRepository
+                        .findByEmployeeIdAndStatus(emp.getId(), AssignmentStatus.ASSIGNED)
+                        .size()));
+
+        if (selectedEmployee.isEmpty()) {
+            throw new RuntimeException("No available employees for job title: " + requiredJobTitle + " on " + appointmentDate);
+        }
+
+        Long employeeId = selectedEmployee.get().getId();
+        Assignment assignment = Assignment.builder()
+                .employeeId(employeeId)
+                .appointmentId(appointmentId)
+                .status(AssignmentStatus.ASSIGNED)
+                .build();
+
+        assignmentRepository.save(assignment);
+        log.info("Assigned appointment {} to employee {} (Job: {})", appointmentId, employeeId, requiredJobTitle);
+
+        // ✅ Send notification to selected employee
+        notificationClient.sendEmail(
+                selectedEmployee.get().getEmail(),
+                "Appointment Assigned",
+                "You have been assigned an appointment for " + appointmentDate + " (" + requiredJobTitle + ")"
+        );
+
+        notificationClient.sendSMS(
+                "+94712345678", // replace with actual employee phone later
+                "Appointment assigned on " + appointmentDate + " (" + requiredJobTitle + ")"
+        );
+
+        return assignment;
+    }
+
+    // New method: auto-assign using AppointmentRequestDto
+    public Assignment autoAssignEmployee(AppointmentRequestDto request) {
+        String requiredJobTitle = mapServiceTypeToJobTitle(request.getServiceType());
+        return assignToAvailableEmployee(request.getAppointmentId(), requiredJobTitle, request.getAppointmentDate());
+    }
+
+    // Helper method to map service type to job title
+    private String mapServiceTypeToJobTitle(String serviceType) {
+        return switch (serviceType) {
+            case "MECHANICAL" -> "MECHANIC";
+            case "ELECTRICAL" -> "TECHNICIAN";
+            default -> "GENERAL EMPLOYEE";
+        };
     }
 
     public List<Assignment> forEmployee(Long employeeId) {
@@ -31,9 +125,9 @@ public class AssignmentService {
     }
 
     public Assignment updateStatus(Long assignmentId, AssignmentStatus status) {
-        Assignment a = assignmentRepository.findById(assignmentId)
+        Assignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new RuntimeException("Assignment not found"));
-        a.setStatus(status);
-        return assignmentRepository.save(a);
+        assignment.setStatus(status);
+        return assignmentRepository.save(assignment);
     }
 }
