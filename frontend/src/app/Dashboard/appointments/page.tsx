@@ -5,12 +5,29 @@ import Navbar from "@/components/Navbar";
 
 // Backend Integration: GET /api/appointments
 
+type Appointment = {
+    id: string;
+    vehicle: string;
+    vehicleId: number;
+    service: string;
+    serviceId: number;
+    date: string;
+    time: string;
+    status: string;
+    employee: string;
+    employeeId: number;
+    estimatedDuration?: string;
+    price?: string;
+    completedAt?: string;
+    rating?: number;
+};
+
 export default function AppointmentsPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState('upcoming');
     
     // Mock Data - Replace with backend API calls
-    const [appointments] = useState({
+    const [appointments] = useState<{ upcoming: Appointment[]; inProgress: Appointment[]; completed: Appointment[] }>({
         upcoming: [
             {
                 id: "APT-001",
