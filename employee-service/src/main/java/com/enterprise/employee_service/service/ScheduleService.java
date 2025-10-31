@@ -18,6 +18,7 @@ public class ScheduleService {
 
     public Schedule create(Long employeeId, LocalDate date, LocalTime start, LocalTime end) {
         Schedule s = Schedule.builder()
+                .employeeId(employeeId)
                 .date(date)
                 .shiftStart(start)
                 .shiftEnd(end)
