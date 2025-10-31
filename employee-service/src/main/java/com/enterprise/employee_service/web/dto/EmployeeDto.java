@@ -19,5 +19,6 @@ public class EmployeeDto {
     @Email
     private String email;
 
-    private String role;
+    private String role;      // Optional: can be enum Role
+    private String jobTitle;  // If you want to include from Auth service
 }
