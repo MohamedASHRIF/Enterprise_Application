@@ -1,9 +1,9 @@
 package org.example.customer_service.models;
 
 public enum AppointmentStatus {
-    PENDING,
-    BOOKED,
+    SCHEDULED,
     IN_PROGRESS,
     COMPLETED,
-    CANCELLED
+    CANCELLED,
+    AWAITING_PARTS
 }

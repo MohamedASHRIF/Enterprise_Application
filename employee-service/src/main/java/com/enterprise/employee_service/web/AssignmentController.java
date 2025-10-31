@@ -1,0 +1,40 @@
+package com.enterprise.employee_service.web;
+
+import com.enterprise.employee_service.domain.Assignment;
+import com.enterprise.employee_service.domain.AssignmentStatus;
+import com.enterprise.employee_service.service.AssignmentService;
+import com.enterprise.employee_service.web.dto.AssignmentResponseDto;
+import com.enterprise.employee_service.web.dto.ResponseDto;
+import com.enterprise.employee_service.web.mapper.DtoMapper;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/assignments")
+public class AssignmentController {
+    private final AssignmentService assignmentService;
+
+    public AssignmentController(AssignmentService assignmentService) {
+        this.assignmentService = assignmentService;
+    }
+
+    @PostMapping("/assign")
+    public ResponseEntity<ResponseDto<AssignmentResponseDto>> assign(@RequestParam Long employeeId, @RequestParam Long appointmentId){
+        Assignment a = assignmentService.assign(employeeId, appointmentId);
+        return ResponseEntity.ok(new ResponseDto<>(true, DtoMapper.toDto(a), "Assignment created successfully"));
+    }
+
+    @GetMapping("/employee/{employeeId}")
+    public ResponseEntity<ResponseDto<List<AssignmentResponseDto>>> forEmployee(@PathVariable Long employeeId){
+        List<Assignment> assignments = assignmentService.forEmployee(employeeId);
+        return ResponseEntity.ok(new ResponseDto<>(true, DtoMapper.toAssignmentDtoList(assignments), "Assignments retrieved successfully"));
+    }
+
+    @PutMapping("/{assignmentId}/status")
+    public ResponseEntity<ResponseDto<AssignmentResponseDto>> updateStatus(@PathVariable Long assignmentId, @RequestParam AssignmentStatus status){
+        Assignment a = assignmentService.updateStatus(assignmentId, status);
+        return ResponseEntity.ok(new ResponseDto<>(true, DtoMapper.toDto(a), "Assignment status updated successfully"));
+    }
+}
