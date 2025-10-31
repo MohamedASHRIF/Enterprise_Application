@@ -9,8 +9,9 @@ public class UserDto {
     private String email;
     private Role role;
     private String phoneNumber;
+    private String jobTitle;  // NEW FIELD
 
-    // Getters and setters
+    // getters and setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -28,4 +29,7 @@ public class UserDto {
 
     public String getPhoneNumber() { return phoneNumber; }
     public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+
+    public String getJobTitle() { return jobTitle; }    // NEW
+    public void setJobTitle(String jobTitle) { this.jobTitle = jobTitle; }  // NEW
 }
