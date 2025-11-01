@@ -1,5 +1,17 @@
 [
   {
+    "keywords": ["appointment", "book", "schedule"],
+    "answer": "To book an appointment, go to Dashboard → Book Service and follow the steps."
+  },
+  {
+    "keywords": ["vehicle", "car", "truck"],
+    "answer": "Manage vehicles in Profile → Vehicles. You can add, edit or remove vehicles there."
+  },
+  {
+    "keywords": ["invoice", "payment", "bill"],
+    "answer": "Invoices are available in History → Invoices; you can download or pay online."
+  },
+  {
     "keywords": ["login", "sign in", "signin"],
     "answer": "To sign in to the Enterprise Application, go to the Login page and enter your company credentials. If you forgot your password, use the 'Forgot password' flow to reset it."
   },
