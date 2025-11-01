@@ -1,4 +1,5 @@
 package com.enterprise.authentication.controller;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import com.enterprise.authentication.service.EmployeeService;
 import com.enterprise.authentication.dto.EmployeeDtos.EmployeeListItem;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.http.HttpStatus;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -40,6 +42,12 @@ public class EmployeeController {
      * Query params: search, role, status, page, size
      * Response: Spring Page with EmployeeListItem
      */
+    @GetMapping("/all")
+    public ResponseEntity<List<EmployeeListItem>> getAllEmployees() {
+        List<EmployeeListItem> employees = employeeService.getAllEmployees();
+        return ResponseEntity.ok(employees);
+    }
+
     @GetMapping
     public ResponseEntity<Page<EmployeeListItem>> listEmployees(
             @RequestParam(value = "search", required = false) String search,
@@ -51,6 +59,11 @@ public class EmployeeController {
         Page<EmployeeListItem> result = employeeService.listEmployees(search, role, status, page, size);
         return ResponseEntity.ok(result);
     }
+    @GetMapping("/email/{email}")
+    public ResponseEntity<EmployeeListItem> getEmployeeByEmail(@PathVariable String email) {
+        EmployeeListItem employee = employeeService.getEmployeeByEmail(email);
+        return ResponseEntity.ok(employee);
+    }
 
     // @PostMapping
     // public ResponseEntity<User> createEmployee(@RequestBody User employee) { ... }
@@ -60,4 +73,5 @@ public class EmployeeController {
         EmployeeListItem created = employeeService.createEmployee(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
+
 }
