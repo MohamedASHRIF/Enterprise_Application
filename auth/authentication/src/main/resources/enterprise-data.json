@@ -1,0 +1,26 @@
+[
+  {
+    "keywords": ["login", "sign in", "signin"],
+    "answer": "To sign in to the Enterprise Application, go to the Login page and enter your company credentials. If you forgot your password, use the 'Forgot password' flow to reset it."
+  },
+  {
+    "keywords": ["register", "signup", "sign up", "create account"],
+    "answer": "To register, open the Register page and fill in the required fields. Contact your administrator if registration requires approval."
+  },
+  {
+    "keywords": ["api", "endpoint", "integration", "backend"],
+    "answer": "The backend exposes REST APIs under /api/. Consult the API documentation for available endpoints and required authentication headers."
+  },
+  {
+    "keywords": ["notifications", "notify", "email", "sms"],
+    "answer": "Notifications are sent via the Notification System. Check your profile notification settings to enable or disable email/SMS notifications."
+  },
+  {
+    "keywords": ["vehicle", "vehicle management", "vehicles"],
+    "answer": "Vehicle-related operations are available in the Vehicles section of the Dashboard. You can add, edit, and track vehicles there."
+  },
+  {
+    "keywords": ["packages"],
+    "answer": "There are three packages available: Basic, Pro, and Enterprise. Each package offers different features and support levels. Please refer to the pricing page for more details."
+  }
+]

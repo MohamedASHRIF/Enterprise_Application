@@ -5,6 +5,7 @@ public class ChatResponse {
     private boolean related;
 
     public ChatResponse() {
+        
     }
 
     public ChatResponse(String reply, boolean related) {
