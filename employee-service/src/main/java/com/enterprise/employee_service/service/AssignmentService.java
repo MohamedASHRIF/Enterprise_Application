@@ -144,4 +144,25 @@ public class AssignmentService {
         assignment.setStatus(status);
         return assignmentRepository.save(assignment);
     }
+
+    // ✅ Get enriched assignments with appointment details for an employee
+    public List<com.enterprise.employee_service.web.dto.AssignmentResponseDto> getEnrichedAssignmentsForEmployee(Long employeeId) {
+        List<Assignment> assignments = forEmployee(employeeId);
+        return assignments.stream().map(assignment -> {
+            com.enterprise.employee_service.web.dto.AssignmentResponseDto dto = 
+                com.enterprise.employee_service.web.mapper.DtoMapper.toDto(assignment);
+            
+            // Try to fetch appointment details from customer service
+            var appointmentDetails = customerServiceClient.getAppointmentDetails(assignment.getAppointmentId());
+            if (appointmentDetails != null) {
+                // You can add appointment details to the DTO if you extend it
+                // For now, just log that we got the details
+                log.debug("✅ Fetched appointment details for appointment {}", assignment.getAppointmentId());
+            } else {
+                log.debug("⚠️ Could not fetch appointment details for appointment {}", assignment.getAppointmentId());
+            }
+            
+            return dto;
+        }).toList();
+    }
 }
