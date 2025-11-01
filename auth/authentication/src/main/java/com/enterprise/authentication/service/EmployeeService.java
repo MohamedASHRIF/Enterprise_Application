@@ -52,6 +52,27 @@ public class EmployeeService {
         return stats;
     }
 
+    public List<EmployeeListItem> getAllEmployees() {
+        // Convert roles to strings for native query
+        List<String> roleNames = EMPLOYEE_ROLES.stream()
+                .map(Role::name)
+                .toList();
+        
+        // Get all employees (no pagination, no filters)
+        Pageable pageable = PageRequest.of(0, Integer.MAX_VALUE);
+        Page<User> pageResult = userRepository.findEmployees(
+                roleNames,
+                null, // no search
+                null, // no job title filter
+                null, // no status filter
+                pageable
+        );
+
+        return pageResult.getContent().stream()
+                .map(EmployeeService::toListItem)
+                .toList();
+    }
+
     public Page<EmployeeListItem> listEmployees(
             String search,
             String role,
@@ -87,6 +108,13 @@ public class EmployeeService {
 
         return pageResult.map(EmployeeService::toListItem);
     }
+    public EmployeeListItem getEmployeeByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .map(EmployeeService::toListItem)
+                .orElseThrow(() -> new RuntimeException("Employee not found with email: " + email));
+    }
+
+
 
     private static EmployeeListItem toListItem(User u) {
         EmployeeListItem dto = new EmployeeListItem();
