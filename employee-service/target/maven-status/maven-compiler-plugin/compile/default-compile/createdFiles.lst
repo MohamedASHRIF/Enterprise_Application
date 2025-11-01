@@ -5,6 +5,7 @@ com\enterprise\employee_service\web\dto\AppointmentRequestDto.class
 com\enterprise\employee_service\web\dto\EmployeeResponseDto.class
 com\enterprise\employee_service\domain\Assignment.class
 com\enterprise\employee_service\service\EmployeeService.class
+com\enterprise\employee_service\service\NotificationClient.class
 com\enterprise\employee_service\config\RestTemplateConfig.class
 com\enterprise\employee_service\web\dto\UserDto.class
 com\enterprise\employee_service\web\TimeLogController.class
@@ -19,6 +20,7 @@ com\enterprise\employee_service\web\dto\ScheduleResponseDto.class
 com\enterprise\employee_service\service\AssignmentService.class
 com\enterprise\employee_service\web\EmployeeController.class
 com\enterprise\employee_service\web\dto\AssignmentResponseDto.class
+com\enterprise\employee_service\config\CorsConfig.class
 com\enterprise\employee_service\repository\TimeLogRepository.class
 com\enterprise\employee_service\service\TimeLogService.class
 com\enterprise\employee_service\repository\AssignmentRepository.class
