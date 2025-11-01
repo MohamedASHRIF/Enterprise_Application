@@ -8,6 +8,7 @@ import com.enterprise.employee_service.web.dto.UserDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -21,7 +22,7 @@ public class AssignmentService {
     private final AssignmentRepository assignmentRepository;
     private final EmployeeService employeeService;
     private final ScheduleRepository scheduleRepository;
-    private final NotificationClient notificationClient; // ✅ added
+    private final NotificationClient notificationClient;
 
     public AssignmentService(AssignmentRepository assignmentRepository,
                              EmployeeService employeeService,
@@ -33,7 +34,7 @@ public class AssignmentService {
         this.notificationClient = notificationClient;
     }
 
-    // Manual assignment
+    // ✅ Manual assignment
     public Assignment assign(Long employeeId, Long appointmentId) {
         Assignment assignment = Assignment.builder()
                 .employeeId(employeeId)
@@ -43,7 +44,7 @@ public class AssignmentService {
 
         assignmentRepository.save(assignment);
 
-        // ✅ Send notification to employee (example)
+        // Send notification (email + SMS)
         notificationClient.sendEmail(
                 "employee" + employeeId + "@example.com",
                 "New Assignment",
@@ -51,7 +52,7 @@ public class AssignmentService {
         );
 
         notificationClient.sendSMS(
-                "+94712345678", // you can later map employee phone number dynamically
+                "+94712345678",
                 "New assignment: Appointment ID " + appointmentId
         );
 
@@ -60,24 +61,37 @@ public class AssignmentService {
         return assignment;
     }
 
-    // Auto-assign based on availability and job title
+    // ✅ Auto-assign based on availability and job title (with fallback)
     public Assignment assignToAvailableEmployee(Long appointmentId, String requiredJobTitle, LocalDate appointmentDate) {
         List<UserDto> employees = employeeService.getEmployeesByJobTitle(requiredJobTitle);
+
+        // Fallback: assign any employee if no specialization match
         if (employees.isEmpty()) {
-            throw new RuntimeException("No employees found with job title: " + requiredJobTitle);
+            log.warn("⚠️ No employees with job title {} found. Falling back to general employees.", requiredJobTitle);
+            employees = employeeService.getAllEmployees();
+            if (employees.isEmpty()) {
+                throw new RuntimeException("❌ No employees available at all.");
+            }
         }
 
+        // Choose least busy & available employee
         Optional<UserDto> selectedEmployee = employees.stream()
                 .filter(emp -> {
                     var schedules = scheduleRepository.findByEmployeeIdAndDate(emp.getId(), appointmentDate);
                     return schedules == null || schedules.isEmpty(); // available if no schedule found
                 })
-                .min(Comparator.comparingInt(emp -> assignmentRepository
-                        .findByEmployeeIdAndStatus(emp.getId(), AssignmentStatus.ASSIGNED)
-                        .size()));
+                .min(Comparator.comparingInt(emp ->
+                        assignmentRepository.findByEmployeeIdAndStatus(emp.getId(), AssignmentStatus.ASSIGNED).size()));
+
+        // If all are busy, still assign the least busy one
+        if (selectedEmployee.isEmpty()) {
+            selectedEmployee = employees.stream()
+                    .min(Comparator.comparingInt(emp ->
+                            assignmentRepository.findByEmployeeIdAndStatus(emp.getId(), AssignmentStatus.ASSIGNED).size()));
+        }
 
         if (selectedEmployee.isEmpty()) {
-            throw new RuntimeException("No available employees for job title: " + requiredJobTitle + " on " + appointmentDate);
+            throw new RuntimeException("❌ No employees available for assignment.");
         }
 
         Long employeeId = selectedEmployee.get().getId();
@@ -88,9 +102,9 @@ public class AssignmentService {
                 .build();
 
         assignmentRepository.save(assignment);
-        log.info("Assigned appointment {} to employee {} (Job: {})", appointmentId, employeeId, requiredJobTitle);
+        log.info("✅ Assigned appointment {} to employee {} (Job: {})", appointmentId, employeeId, requiredJobTitle);
 
-        // ✅ Send notification to selected employee
+        // Send notification
         notificationClient.sendEmail(
                 selectedEmployee.get().getEmail(),
                 "Appointment Assigned",
@@ -98,20 +112,20 @@ public class AssignmentService {
         );
 
         notificationClient.sendSMS(
-                "+94712345678", // replace with actual employee phone later
+                "+94712345678",
                 "Appointment assigned on " + appointmentDate + " (" + requiredJobTitle + ")"
         );
 
         return assignment;
     }
 
-    // New method: auto-assign using AppointmentRequestDto
+    // ✅ Auto-assign using AppointmentRequestDto
     public Assignment autoAssignEmployee(AppointmentRequestDto request) {
         String requiredJobTitle = mapServiceTypeToJobTitle(request.getServiceType());
         return assignToAvailableEmployee(request.getAppointmentId(), requiredJobTitle, request.getAppointmentDate());
     }
 
-    // Helper method to map service type to job title
+    // ✅ Map service type → job title
     private String mapServiceTypeToJobTitle(String serviceType) {
         return switch (serviceType) {
             case "MECHANICAL" -> "MECHANIC";
