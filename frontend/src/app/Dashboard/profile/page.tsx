@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
+import api from "../../api/api";
 
 // Backend Integration: 
 // GET /api/profile
@@ -70,8 +71,30 @@ export default function ProfilePage() {
             }
         }
 
-        // Load preferences
-        // Backend Integration: Load preferences from API
+        // Load latest profile from backend
+        const load = async () => {
+            try {
+                const res = await api.get('/profile');
+                const u = res.data || {};
+                setProfileData({
+                    firstName: u.firstName || '',
+                    lastName: u.lastName || '',
+                    email: u.email || '',
+                    phoneNumber: u.phoneNumber || '',
+                    address: u.address || '',
+                    city: u.city || '',
+                    state: u.state || '',
+                    zipCode: u.zipCode || ''
+                });
+                // update local copy
+                const updatedUser = { ...(JSON.parse(localStorage.getItem('user') || '{}')), ...u };
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+            } catch (e) {
+                // non-blocking
+                console.warn('Failed to load profile from API', e);
+            }
+        };
+        load();
     }, []);
 
     const handleProfileUpdate = async (e: React.FormEvent) => {
@@ -79,11 +102,15 @@ export default function ProfilePage() {
         setIsLoading(true);
 
         try {
-            // Backend Integration: PUT /api/profile
-            // await api.put('/profile', profileData);
+            const payload = {
+                firstName: profileData.firstName,
+                lastName: profileData.lastName,
+                phoneNumber: profileData.phoneNumber,
+            };
+            const res = await api.put('/profile', payload);
             
             // Update localStorage
-            const updatedUser = { ...JSON.parse(localStorage.getItem('user') || '{}'), ...profileData };
+            const updatedUser = { ...JSON.parse(localStorage.getItem('user') || '{}'), ...res.data };
             localStorage.setItem('user', JSON.stringify(updatedUser));
             
             alert('Profile updated successfully!');
@@ -112,11 +139,10 @@ export default function ProfilePage() {
         setIsLoading(true);
 
         try {
-            // Backend Integration: PUT /api/profile/password
-            // await api.put('/profile/password', {
-            //     currentPassword: passwordData.currentPassword,
-            //     newPassword: passwordData.newPassword
-            // });
+            await api.put('/profile/password', {
+                currentPassword: passwordData.currentPassword,
+                newPassword: passwordData.newPassword
+            });
             
             alert('Password changed successfully!');
             setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
