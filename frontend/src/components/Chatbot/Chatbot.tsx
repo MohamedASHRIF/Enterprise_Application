@@ -30,42 +30,44 @@ const Chatbot: React.FC = () => {
   }, [messages, open]);
 
   const toggle = () => setOpen((v) => !v);
+  const [sending, setSending] = useState(false);
 
-  const send = () => {
+  const send = async () => {
     const text = input.trim();
-    if (!text) return;
+    if (!text || sending) return;
 
     const userMsg = { from: "user" as const, text };
     // append user message
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
 
-    // demo bot reply (placeholder) appended after a short delay
-    setTimeout(() => {
-      const botReply = generateBotReply(text);
-      setMessages((prev) => [...prev, { from: "bot", text: botReply }]);
-    }, 600);
-  };
+    setSending(true);
+    try {
+      // call backend chatbot service
+      const res = await fetch("http://localhost:8080/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
 
-  // Simple local reply generator to avoid echoing the user's exact text.
-  // This is a placeholder for a real backend/chatbot integration.
-  function generateBotReply(userText: string) {
-    const t = userText.toLowerCase();
-    if (t.includes("help") || t.includes("support")) {
-      return "I can help with that — can you share a few more details?";
+      if (!res.ok) {
+        throw new Error(`status:${res.status}`);
+      }
+
+      const data = await res.json();
+      const reply = data?.reply ?? "Sorry, I couldn't generate a reply.";
+      setMessages((prev) => [...prev, { from: "bot", text: reply }]);
+    } catch (err) {
+      // fallback message
+      setMessages((prev) => [
+        ...prev,
+        { from: "bot", text: "Chat service unavailable. Please try again later." },
+      ]);
+      console.error("Chatbot error:", err);
+    } finally {
+      setSending(false);
     }
-    if (t.includes("price") || t.includes("cost") || t.includes("charge")) {
-      return "For pricing details, please tell me which service or product you're interested in.";
-    }
-    if (t.includes("error") || t.includes("bug") || t.includes("issue")) {
-      return "Sorry to hear that — can you paste the error or describe what you expected?";
-    }
-    if (t.endsWith("?")) {
-      return "Good question — I'll look into that and get back to you shortly.";
-    }
-    // fallback reply
-    return "Thanks for your message — our team will get back to you soon.";
-  }
+  };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
