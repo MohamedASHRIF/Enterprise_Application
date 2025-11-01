@@ -89,6 +89,20 @@
   font-size: 0.95rem;
 }
 
+/* Ensure long messages wrap and don't cause horizontal overflow */
+.messageBot,
+.messageUser {
+  box-sizing: border-box;
+  white-space: pre-wrap; /* preserve newlines and wrap long lines */
+  overflow-wrap: anywhere; /* break long words/URLs if necessary */
+  word-break: break-word; /* fallback for some browsers */
+  hyphens: auto;
+}
+
+.messages {
+  overflow-x: hidden; /* prevent horizontal scroll from long content */
+}
+
 .inputArea {
   display: flex;
   gap: 0.5rem;
