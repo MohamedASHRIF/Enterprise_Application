@@ -19,6 +19,8 @@ public class EmployeeService {
         this.authClient = authClient;
     }
 
+
+
     public UserDto getLoggedInEmployee(String email, String token) {
         return authClient.getEmployeeByEmail(email, token);
     }
@@ -28,6 +30,7 @@ public class EmployeeService {
             UserDto[] allEmployees = authClient.getAllEmployees();
             if (allEmployees == null) return List.of();
 
+            // Filter by role & job title
             return Arrays.stream(allEmployees)
                     .filter(e -> e.getRole() != null && e.getRole().name().equalsIgnoreCase("EMPLOYEE"))
                     .filter(e -> e.getJobTitle() != null && e.getJobTitle().equalsIgnoreCase(jobTitle))
@@ -35,6 +38,17 @@ public class EmployeeService {
 
         } catch (Exception e) {
             log.error("❌ Failed to fetch employees from Auth Service: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    // ✅ fallback: get all employees (for when no job title matches)
+    public List<UserDto> getAllEmployees() {
+        try {
+            UserDto[] allEmployees = authClient.getAllEmployees();
+            return allEmployees != null ? Arrays.asList(allEmployees) : List.of();
+        } catch (Exception e) {
+            log.error("❌ Failed to fetch all employees: {}", e.getMessage());
             return List.of();
         }
     }
