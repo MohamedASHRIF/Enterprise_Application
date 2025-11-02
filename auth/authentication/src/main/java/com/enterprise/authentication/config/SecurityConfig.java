@@ -44,7 +44,8 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/error").permitAll()
+                // allow unauthenticated access to auth endpoints and chatbot API during development
+                .requestMatchers("/api/auth/**", "/api/chat/**", "/error").permitAll()
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form.disable())
