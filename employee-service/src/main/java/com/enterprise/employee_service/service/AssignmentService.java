@@ -161,17 +161,72 @@ public class AssignmentService {
         return assignments.stream().map(assignment -> {
             com.enterprise.employee_service.web.dto.AssignmentResponseDto dto = 
                 com.enterprise.employee_service.web.mapper.DtoMapper.toDto(assignment);
-            
+
             // Try to fetch appointment details from customer service
             var appointmentDetails = customerServiceClient.getAppointmentDetails(assignment.getAppointmentId());
             if (appointmentDetails != null) {
-                // You can add appointment details to the DTO if you extend it
-                // For now, just log that we got the details
-                log.debug("✅ Fetched appointment details for appointment {}", assignment.getAppointmentId());
+                try {
+                    // vehicle summary
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<String, Object> vehicle = (java.util.Map<String, Object>) appointmentDetails.get("vehicle");
+                    if (vehicle != null) {
+                        String make = vehicle.get("make") != null ? vehicle.get("make").toString() : "";
+                        String model = vehicle.get("model") != null ? vehicle.get("model").toString() : "";
+                        String year = vehicle.get("year") != null ? vehicle.get("year").toString() : "";
+                        String vehicleSummary = (make + " " + model + " " + year).trim();
+                        dto.setVehicle(vehicleSummary.isEmpty() ? null : vehicleSummary);
+                    }
+
+                    // service name
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<String, Object> service = (java.util.Map<String, Object>) appointmentDetails.get("service");
+                    if (service != null && service.get("name") != null) {
+                        dto.setService(service.get("name").toString());
+                    }
+
+                    // appointment date/time/estimatedDuration
+                    if (appointmentDetails.get("appointmentDate") != null) {
+                        dto.setAppointmentDate(appointmentDetails.get("appointmentDate").toString());
+                    }
+                    if (appointmentDetails.get("appointmentTime") != null) {
+                        dto.setAppointmentTime(appointmentDetails.get("appointmentTime").toString());
+                    }
+                    if (appointmentDetails.get("estimatedDuration") != null) {
+                        dto.setEstimatedDuration(appointmentDetails.get("estimatedDuration").toString());
+                    }
+
+                    // customer: appointment may contain customerId only
+                    Object cidObj = appointmentDetails.get("customerId");
+                    Long cid = null;
+                    if (cidObj instanceof Number) cid = ((Number) cidObj).longValue();
+                    else if (cidObj != null) {
+                        try { cid = Long.parseLong(cidObj.toString()); } catch (Exception ignored) {}
+                    }
+
+                    if (cid != null) {
+                        var customer = customerServiceClient.getCustomerById(cid);
+                        if (customer != null) {
+                            String name = customer.get("name") != null ? customer.get("name").toString() : null;
+                            dto.setCustomerName(name);
+                            if (name != null && name.contains(" ")) {
+                                int idx = name.indexOf(' ');
+                                dto.setCustomerFirstName(name.substring(0, idx).trim());
+                                dto.setCustomerLastName(name.substring(idx + 1).trim());
+                            } else {
+                                dto.setCustomerFirstName(name);
+                                dto.setCustomerLastName("");
+                            }
+                        }
+                    }
+
+                    log.debug("✅ Enriched assignment {} with appointment {} details", assignment.getId(), assignment.getAppointmentId());
+                } catch (Exception e) {
+                    log.warn("⚠️ Failed to enrich assignment {}: {}", assignment.getId(), e.getMessage());
+                }
             } else {
                 log.debug("⚠️ Could not fetch appointment details for appointment {}", assignment.getAppointmentId());
             }
-            
+
             return dto;
         }).toList();
     }
