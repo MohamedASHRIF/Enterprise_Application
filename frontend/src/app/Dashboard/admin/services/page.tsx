@@ -2,12 +2,27 @@
 import { useEffect, useState } from "react";
 import { defaultServices } from "@/lib/services";
 import Navbar from "@/components/Navbar";
+import adminApi from "../../../api/adminApi";
 
 export default function AdminServicesPage() {
     const [userRole, setUserRole] = useState<string | null>(null);
     const [services, setServices] = useState<{ id: number; name: string; description: string; estimateMins: number; cost: number; active: boolean; category?: string; }[]>(defaultServices);
     const [form, setForm] = useState({ name: "", description: "", estimateMins: "", cost: "", category: "" });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const fetchServices = async () => {
+        setIsLoading(true);
+        try {
+            const res = await adminApi.get('/services');
+            setServices(res.data || []);
+        } catch (e) {
+            console.error('Failed to load services', e);
+            alert('Failed to load services');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
@@ -29,6 +44,7 @@ export default function AdminServicesPage() {
                 window.location.href = '/Dashboard';
                 return;
             }
+            fetchServices();
         } catch (error) {
             console.error('Error parsing user data:', error);
             localStorage.removeItem('user');
@@ -48,7 +64,7 @@ export default function AdminServicesPage() {
         );
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!form.name.trim() || !form.description.trim()) {
             alert('Please fill in service name and description.');
@@ -74,8 +90,15 @@ export default function AdminServicesPage() {
         }
     };
 
-    const toggleActive = (id: number) => {
-        setServices(services.map(s => s.id === id ? { ...s, active: !s.active } : s));
+    const toggleActive = async (id: number) => {
+        try {
+            const res = await adminApi.patch(`/services/${id}/toggle`);
+            const { active } = res.data || {};
+            setServices(services.map(s => s.id === id ? { ...s, active: typeof active === 'boolean' ? active : !s.active } : s));
+        } catch (e) {
+            console.error('Failed to toggle service', e);
+            alert('Failed to toggle service');
+        }
     };
 
     return (
@@ -197,7 +220,11 @@ export default function AdminServicesPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-800">
-                                {services.length === 0 ? (
+                                {isLoading ? (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-10 text-center text-gray-400">Loading services...</td>
+                                    </tr>
+                                ) : services.length === 0 ? (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-10 text-center text-gray-400">No services yet. Add your first service above.</td>
                                     </tr>
