@@ -50,4 +50,26 @@ public class CustomerServiceClient {
             return null;
         }
     }
+
+    public Map<String, Object> getCustomerById(Long customerId) {
+        try {
+            String url = customerServiceUrl + "/customers/" + customerId;
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    url, HttpMethod.GET, null,
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+            Map<String, Object> body = response.getBody();
+            log.info("Fetched customer from Customer Service for id={} -> {}", customerId, body);
+            return body;
+        } catch (RestClientResponseException e) {
+            log.warn("Customer service returned error for customer id={} status={} body={}", customerId, e.getRawStatusCode(), e.getResponseBodyAsString());
+            return null;
+        } catch (RestClientException e) {
+            log.warn("Failed to fetch customer from Customer Service for id={}: {}", customerId, e.toString());
+            return null;
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching customer for id={}", customerId, e);
+            return null;
+        }
+    }
 }
