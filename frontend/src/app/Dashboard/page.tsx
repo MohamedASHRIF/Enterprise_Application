@@ -23,6 +23,16 @@ export default function Dashboard() {
         if (storedUser) {
             try {
                 const userData = JSON.parse(storedUser);
+                const role = userData.role || 'CUSTOMER';
+                
+                // Redirect employees to their dashboard
+                if (role === 'EMPLOYEE') {
+                    window.location.href = '/Dashboard/employee';
+                    return;
+                }
+                
+            
+                
                 const name = userData.firstName && userData.lastName 
                     ? `${userData.firstName} ${userData.lastName}` 
                     : userData.email || 'User';
