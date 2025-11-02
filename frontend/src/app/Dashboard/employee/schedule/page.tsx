@@ -8,7 +8,6 @@ import {
     stopTimeLog,
     getTimeLogsForAssignment,
     updateAssignmentStatus,
-    getEmployeeWorkHours,
     type TimeLogResponse
 } from "@/app/api/employeeApi";
 
@@ -36,11 +35,8 @@ export default function EmployeeSchedule() {
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [tick, setTick] = useState(0); // updates every second to drive live timers
     const [isLoading, setIsLoading] = useState(true);
-    // windowStartISO is the first day shown in the 7-day sliding window (YYYY-MM-DD)
-    const [windowStartISO, setWindowStartISO] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [focusedDay, setFocusedDay] = useState<string | null>(null);
     const [showEmptyDays, setShowEmptyDays] = useState<boolean>(true);
-    const [weeklyHoursStr, setWeeklyHoursStr] = useState<string>('0s');
-    const [todayHoursStr, setTodayHoursStr] = useState<string>('0s');
 
     useEffect(() => {
         // Check if user is authenticated and has EMPLOYEE role
@@ -98,8 +94,15 @@ export default function EmployeeSchedule() {
             const enrichedAssignments = await enrichAssignmentsWithDetails(assignmentsData);
             
             // Get time logs for each assignment to show start/end times
-            // Build schedule keyed by ISO date strings (YYYY-MM-DD) so we can render a sliding 7-day window
-            const scheduleData: { [key: string]: ScheduledTask[] } = {};
+            const scheduleData: { [key: string]: ScheduledTask[] } = {
+                'Monday': [],
+                'Tuesday': [],
+                'Wednesday': [],
+                'Thursday': [],
+                'Friday': [],
+                'Saturday': [],
+                'Sunday': []
+            };
 
             // Process each assignment
             for (const assignment of enrichedAssignments) {
@@ -120,25 +123,12 @@ export default function EmployeeSchedule() {
                         activeTimeLog = timeLogs.find(log => log.startTime && !log.endTime) || null;
                     }
 
-                    // Parse appointment date and use ISO date as key (YYYY-MM-DD)
-                    // IMPORTANT: avoid using `new Date(str).toISOString()` on date-only strings because
-                    // JS may treat 'YYYY-MM-DD' as UTC and shift the day depending on the local timezone.
+                    // Parse appointment date
                     const appointmentDate = assignment.appointmentDate || assignment.assignedDate;
                     if (!appointmentDate) continue;
-                    // If the server returns a full datetime like '2025-11-02T10:00:00', take the date part before 'T'.
-                    // If it returns 'YYYY-MM-DD', take the first 10 chars. Fallback to Date parsing only if needed.
-                    let isoDate: string;
-                    if (typeof appointmentDate === 'string' && appointmentDate.includes('T')) {
-                        isoDate = appointmentDate.split('T')[0];
-                    } else if (typeof appointmentDate === 'string' && appointmentDate.length >= 10) {
-                        isoDate = appointmentDate.slice(0, 10);
-                    } else {
-                        // last resort: parse with Date and convert to ISO (should be rare)
-                        isoDate = new Date(appointmentDate).toISOString().split('T')[0];
-                    }
-                    // For display label use a Date constructed at local midnight for the isoDate
-                    const localDay = new Date(isoDate + 'T00:00:00');
-                    const dayName = localDay.toLocaleDateString('en-US', { weekday: 'long' });
+
+                    const date = new Date(appointmentDate);
+                    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
                     
                     // Format time
                     const appointmentTime = assignment.appointmentTime || '09:00 AM';
@@ -204,54 +194,21 @@ export default function EmployeeSchedule() {
                         timeLogs: timeLogs
                     };
 
-                    if (!scheduleData[isoDate]) scheduleData[isoDate] = [];
-                    scheduleData[isoDate].push(task);
+                    if (scheduleData[dayName]) {
+                        scheduleData[dayName].push(task);
+                    }
                 } catch (err) {
                     console.error(`Error processing assignment ${assignment.id}:`, err);
                 }
             }
 
             setSchedule(scheduleData);
-            // default window start: today
+            // default focus: start the week view from today (preserve weekday flow)
             try {
-                const todayISO = new Date().toISOString().split('T')[0];
-                setWindowStartISO(todayISO);
+                const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+                setFocusedDay(today);
             } catch (e) {
-                // ignore
-            }
-            // Fetch employee work-hours and compute weekly/today totals (human readable)
-            try {
-                const workHours = await getEmployeeWorkHours(employeeId);
-                // compute week range (Monday..Sunday)
-                const now = new Date();
-                const day = now.getDay(); // 0 (Sun) - 6 (Sat)
-                const diffToMonday = (day + 6) % 7; // days since Monday
-                const monday = new Date(now);
-                monday.setDate(now.getDate() - diffToMonday);
-                monday.setHours(0,0,0,0);
-                const sunday = new Date(monday);
-                sunday.setDate(monday.getDate() + 6);
-                sunday.setHours(23,59,59,999);
-
-                const mondayISO = monday.toISOString().split('T')[0];
-                const sundayISO = sunday.toISOString().split('T')[0];
-                const todayISO = now.toISOString().split('T')[0];
-
-                let weeklySeconds = 0;
-                let todaySeconds = 0;
-                for (const wh of workHours) {
-                    if (!wh || !wh.workDate) continue;
-                    const d = wh.workDate;
-                    if (d >= mondayISO && d <= sundayISO) weeklySeconds += wh.totalSeconds || 0;
-                    if (d === todayISO) todaySeconds += wh.totalSeconds || 0;
-                }
-
-                setWeeklyHoursStr(formatSecondsToHuman(weeklySeconds));
-                setTodayHoursStr(formatSecondsToHuman(todaySeconds));
-            } catch (e) {
-                console.warn('Failed to fetch work hours for employee', employeeId, e);
-                setWeeklyHoursStr('0s');
-                setTodayHoursStr('0s');
+                setFocusedDay(null);
             }
         } catch (error) {
             console.error('Error fetching schedule data:', error);
@@ -548,11 +505,9 @@ export default function EmployeeSchedule() {
         const h = Math.floor(secs / 3600);
         const m = Math.floor((secs % 3600) / 60);
         const s = secs % 60;
-        const parts: string[] = [];
-        if (h > 0) parts.push(`${h} ${h === 1 ? 'hr' : 'hrs'}`);
-        if (m > 0) parts.push(`${m} ${m === 1 ? 'min' : 'mins'}`);
-        if (s > 0 || parts.length === 0) parts.push(`${s} ${s === 1 ? 'sec' : 'secs'}`);
-        return parts.join(' ');
+        if (h > 0) return `${h}h ${m}m ${s}s`;
+        if (m > 0) return `${m}m ${s}s`;
+        return `${s}s`;
     };
 
     // Rebuild a ScheduledTask summary from its timeLogs (used for optimistic updates)
@@ -600,47 +555,23 @@ export default function EmployeeSchedule() {
         } as ScheduledTask;
     };
 
-    // Build 7-day sliding window starting at windowStartISO
-    const buildWindowDays = (startISO: string) => {
-        const list: { iso: string; label: string }[] = [];
-        const base = new Date(startISO + 'T00:00:00');
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(base);
-            d.setDate(base.getDate() + i);
-            const iso = d.toISOString().split('T')[0];
-            const label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-            list.push({ iso, label });
-        }
-        return list;
-    };
-
+    // helper: build render order based on focusedDay and hide/show empty days
+    const weekOrder = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
     const renderDays = (() => {
-        const base = buildWindowDays(windowStartISO);
+        const base = focusedDay ? [focusedDay, ...weekOrder.filter(d => d !== focusedDay)] : weekOrder.slice();
         if (!showEmptyDays) {
-            return base.filter(d => schedule[d.iso] && schedule[d.iso].length > 0);
+            return base.filter(d => schedule[d] && schedule[d].length > 0);
         }
         return base;
     })();
 
     const jumpToToday = () => {
         try {
-            const todayISO = new Date().toISOString().split('T')[0];
-            setWindowStartISO(todayISO);
+            const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+            setFocusedDay(today);
         } catch (e) {
             // ignore
         }
-    };
-
-    const prevWindow = () => {
-        const cur = new Date(windowStartISO + 'T00:00:00');
-        cur.setDate(cur.getDate() - 7);
-        setWindowStartISO(cur.toISOString().split('T')[0]);
-    };
-
-    const nextWindow = () => {
-        const cur = new Date(windowStartISO + 'T00:00:00');
-        cur.setDate(cur.getDate() + 7);
-        setWindowStartISO(cur.toISOString().split('T')[0]);
     };
 
     if (!userRole) {
@@ -667,22 +598,10 @@ export default function EmployeeSchedule() {
                     <p className="text-gray-400">View your weekly schedule and appointments</p>
                     <div className="mt-4 flex items-center gap-3">
                         <button
-                            onClick={prevWindow}
-                            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded-md text-sm border border-gray-700"
-                        >
-                            ← Previous
-                        </button>
-                        <button
                             onClick={jumpToToday}
                             className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded-md text-sm border border-gray-700"
                         >
-                            Today
-                        </button>
-                        <button
-                            onClick={nextWindow}
-                            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded-md text-sm border border-gray-700"
-                        >
-                            Next →
+                            Jump to Today
                         </button>
                         <button
                             onClick={() => setShowEmptyDays(s => !s)}
@@ -690,14 +609,14 @@ export default function EmployeeSchedule() {
                         >
                             {showEmptyDays ? 'Hide Empty Days' : 'Show Empty Days'}
                         </button>
-                        {windowStartISO && (
-                            <div className="ml-3 text-sm text-gray-300">Showing: <span className="font-semibold text-white">{renderDays.length ? `${renderDays[0].label} — ${renderDays[renderDays.length-1].label}` : ''}</span></div>
+                        {focusedDay && (
+                            <div className="ml-3 text-sm text-gray-300">Showing: <span className="font-semibold text-white">{focusedDay}</span></div>
                         )}
                     </div>
                 </div>
 
                 {/* Weekly Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
                         <p className="text-gray-400 text-sm">Total Appointments</p>
                         <p className="text-3xl font-bold text-white mt-2">
@@ -712,12 +631,13 @@ export default function EmployeeSchedule() {
                     </div>
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
                         <p className="text-gray-400 text-sm">Total Time</p>
-                        <div className="mt-2 text-green-500">
-                            <p className="text-2xl font-bold">This Week</p>
-                            <p className="text-xl font-semibold mt-1">{weeklyHoursStr}</p>
-                            <p className="text-2xl font-bold mt-4">Today</p>
-                            <p className="text-xl font-semibold mt-1">{todayHoursStr}</p>
-                        </div>
+                        <p className="text-3xl font-bold text-green-500 mt-2">
+                            {getTotalTime(Object.values(schedule).flat())} hrs
+                        </p>
+                    </div>
+                    <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                        <p className="text-gray-400 text-sm">Available Hours</p>
+                        <p className="text-3xl font-bold text-purple-500 mt-2">40h</p>
                     </div>
                 </div>
 
@@ -734,28 +654,28 @@ export default function EmployeeSchedule() {
                             <p className="text-sm mt-2">Try toggling "Show Empty Days" or check another week.</p>
                         </div>
                     ) : (
-                        renderDays.map((day: { iso: string; label: string }) => (
-                        <div key={day.iso} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                        renderDays.map((day) => (
+                        <div key={day} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
                             <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 px-6 py-4 border-b border-gray-800">
                                 <div className="flex items-center justify-between">
-                                    <h2 className="text-xl font-bold text-white">{day.label}</h2>
+                                    <h2 className="text-xl font-bold text-white">{day}</h2>
                                     <span className="px-3 py-1 bg-gray-800 text-gray-300 rounded-full text-sm font-semibold">
-                                        {schedule[day.iso]?.length || 0} appointments
+                                        {schedule[day]?.length || 0} appointments
                                     </span>
                                 </div>
                             </div>
 
                             <div className="p-6">
-                                {!schedule[day.iso] || schedule[day.iso].length === 0 ? (
+                                {!schedule[day] || schedule[day].length === 0 ? (
                                     <div className="text-center py-8 text-gray-400">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mx-auto mb-2 opacity-50">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-16 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-16 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                                         </svg>
-                                        <p>No appointments scheduled for {day.label}</p>
+                                        <p>No appointments scheduled for {day}</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        {schedule[day.iso].map((task: ScheduledTask) => (
+                                        {schedule[day].map((task) => (
                                             <div key={task.id} className="bg-gray-800 rounded-lg p-5 border border-gray-700 hover:border-cyan-500/50 transition">
                                                 <div className="flex items-start justify-between">
                                                     <div className="flex-1">
@@ -772,7 +692,7 @@ export default function EmployeeSchedule() {
                                                             {task.timeLogs && task.timeLogs.length > 0 ? (() => {
                                                                 // Recalculate total duration for live updates (especially for active logs)
                                                                 let totalSeconds = 0;
-                                                                task.timeLogs?.forEach((tl: TimeLogResponse) => {
+                                                                task.timeLogs?.forEach((tl) => {
                                                                     if (!tl.startTime) return;
                                                                     const startTime = new Date(tl.startTime).getTime();
                                                                     const endTime = tl.endTime ? new Date(tl.endTime).getTime() : undefined;
@@ -794,7 +714,7 @@ export default function EmployeeSchedule() {
                                                                         </p>
                                                                     </div>
                                                                     <div className="space-y-2 max-h-48 overflow-y-auto">
-                                                                        {task.timeLogs.map((tl: TimeLogResponse, idx: number) => {
+                                                                        {task.timeLogs.map((tl, idx) => {
                                                                             const startTime = tl.startTime ? new Date(tl.startTime).getTime() : undefined;
                                                                             const endTime = tl.endTime ? new Date(tl.endTime).getTime() : undefined;
                                                                             const isActive = !endTime;
@@ -1001,7 +921,7 @@ export default function EmployeeSchedule() {
                                 <p className="text-gray-400 text-sm mb-1">Time Log History</p>
                                 <div className="text-white text-sm mt-2 space-y-2">
                                     {selectedTask.timeLogs && selectedTask.timeLogs.length > 0 ? (
-                                        selectedTask.timeLogs.map((tl: TimeLogResponse) => {
+                                        selectedTask.timeLogs.map((tl) => {
                                             const s = tl.startTime ? new Date(tl.startTime).getTime() : undefined;
                                             const e = tl.endTime ? new Date(tl.endTime).getTime() : undefined;
                                             const durSec = s ? Math.max(0, Math.floor(((e ?? Date.now()) - s) / 1000)) : 0;
