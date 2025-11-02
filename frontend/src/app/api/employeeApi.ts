@@ -36,20 +36,20 @@ export interface AssignmentResponse {
     status: 'ASSIGNED' | 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
 }
 
-export interface ScheduleResponse {
-    id: number;
-    employeeId: number;
-    date: string; // ISO date format
-    shiftStart: string; // ISO time format
-    shiftEnd: string; // ISO time format
-}
-
 export interface TimeLogResponse {
     id: number;
     assignmentId: number;
     startTime: string; // ISO datetime format
     endTime?: string; // ISO datetime format
     note?: string;
+}
+
+export interface WorkHoursResponse {
+    id: number;
+    employeeId: number;
+    workDate: string; // ISO date format (YYYY-MM-DD)
+    totalSeconds: number;
+    logCount: number;
 }
 
 export interface ApiResponse<T> {
@@ -85,16 +85,6 @@ export const updateAssignmentStatus = async (
     }
 };
 
-// Get employee schedule
-export const getEmployeeSchedule = async (employeeId: number): Promise<ScheduleResponse[]> => {
-    try {
-        const response = await api.get<ApiResponse<ScheduleResponse[]>>(`/schedules/employee/${employeeId}`);
-        return response.data.data;
-    } catch (error) {
-        console.error('Error fetching employee schedule:', error);
-        throw error;
-    }
-};
 
 // Start time log for an assignment
 export const startTimeLog = async (assignmentId: number, note?: string): Promise<TimeLogResponse> => {
@@ -126,6 +116,40 @@ export const getTimeLogsForAssignment = async (assignmentId: number): Promise<Ti
         return response.data.data;
     } catch (error) {
         console.error('Error fetching time logs:', error);
+        throw error;
+    }
+};
+
+// Get work hours for an employee
+export const getEmployeeWorkHours = async (employeeId: number): Promise<WorkHoursResponse[]> => {
+    try {
+        const response = await api.get<ApiResponse<WorkHoursResponse[]>>(`/timelogs/employee/${employeeId}/hours`);
+        return response.data.data || [];
+    } catch (error: any) {
+        // If 404, return empty array (no work hours yet)
+        if (error.response?.status === 404) {
+            console.warn('Work hours endpoint not found or no data yet. Returning empty array.');
+            return [];
+        }
+        console.error('Error fetching employee work hours:', error);
+        // Return empty array on error to prevent dashboard from breaking
+        return [];
+    }
+};
+
+// Get work hours for an employee within a date range
+export const getEmployeeWorkHoursRange = async (
+    employeeId: number, 
+    startDate: string, 
+    endDate: string
+): Promise<WorkHoursResponse[]> => {
+    try {
+        const response = await api.get<ApiResponse<WorkHoursResponse[]>>(
+            `/timelogs/employee/${employeeId}/hours/range?startDate=${startDate}&endDate=${endDate}`
+        );
+        return response.data.data;
+    } catch (error) {
+        console.error('Error fetching employee work hours range:', error);
         throw error;
     }
 };
@@ -169,6 +193,8 @@ export const enrichAssignmentsWithDetails = async (
                     
                     // If customer service is not available, use default values
                     if (!appointmentDetails) {
+                        // If appointment details can't be fetched, don't invent today's date — leave date fields null
+                        // so the schedule page doesn't incorrectly show the appointment as occurring today.
                         return {
                             ...assignment,
                             id: `ASS-${assignment.id}`,
@@ -178,7 +204,7 @@ export const enrichAssignmentsWithDetails = async (
                             vehicle: 'N/A',
                             service: 'N/A',
                             status: assignment.status,
-                            assignedDate: new Date().toISOString().split('T')[0],
+                            assignedDate: null,
                             priority: 'Medium',
                             estimatedDuration: 'N/A',
                             appointmentDate: null,
@@ -201,7 +227,7 @@ export const enrichAssignmentsWithDetails = async (
                             : 'Unknown Vehicle',
                         service: appointmentDetails.service?.name || 'Unknown Service',
                         status: assignment.status, // Keep backend status
-                        assignedDate: appointmentDetails.appointmentDate || new Date().toISOString().split('T')[0],
+                        assignedDate: appointmentDetails.appointmentDate || null,
                         priority: 'Medium', // Can be added to backend later
                         estimatedDuration: appointmentDetails.estimatedDuration || 'N/A',
                         appointmentDate: appointmentDetails.appointmentDate,
@@ -218,7 +244,9 @@ export const enrichAssignmentsWithDetails = async (
                         vehicle: 'N/A',
                         service: 'N/A',
                         status: assignment.status,
-                        assignedDate: new Date().toISOString().split('T')[0],
+                        assignedDate: null,
+                        appointmentDate: null,
+                        appointmentTime: null,
                         priority: 'Medium',
                         estimatedDuration: 'N/A',
                     };
