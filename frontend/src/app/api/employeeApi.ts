@@ -144,12 +144,12 @@ export const getLoggedInEmployee = async (email: string): Promise<any> => {
 // Fetch appointment details from customer service (needed to get customer, vehicle, service info)
 export const getAppointmentDetails = async (appointmentId: number): Promise<any> => {
     try {
-        // This endpoint is from customer service, using customer service API (port 8080)
-        // If customer service is not running, return null instead of throwing error
-        const response = await customerApi.get(`/appointments/${appointmentId}`);
-        // Log the received appointment details to browser console for debugging
-        console.debug(`Fetched appointment ${appointmentId} from Customer Service:`, response.data);
-        return response.data;
+    // Call the employee service (BFF) which will fetch /compose appointment details from customer-service
+    // This keeps the browser calling only the employee-service.
+    const response = await api.get(`/appointments/${appointmentId}`);
+    // Log the received appointment details to browser console for debugging
+    console.debug(`Fetched appointment ${appointmentId} via Employee Service:`, response.data);
+    return response.data;
     } catch (error) {
         console.warn('Customer service not available or appointment not found:', appointmentId, error);
         // Return null instead of throwing - allows graceful degradation
