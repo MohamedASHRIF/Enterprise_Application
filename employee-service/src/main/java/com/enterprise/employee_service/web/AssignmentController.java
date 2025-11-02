@@ -67,9 +67,9 @@ public class AssignmentController {
      */
     @GetMapping("/employee/{employeeId}")
     public ResponseEntity<ResponseDto<List<AssignmentResponseDto>>> forEmployee(@PathVariable Long employeeId) {
-        List<Assignment> assignments = assignmentService.forEmployee(employeeId);
-        return ResponseEntity.ok(new ResponseDto<>(true, DtoMapper.toAssignmentDtoList(assignments),
-                "Assignments retrieved successfully"));
+    List<com.enterprise.employee_service.web.dto.AssignmentResponseDto> enriched = assignmentService.getEnrichedAssignmentsForEmployee(employeeId);
+    return ResponseEntity.ok(new ResponseDto<>(true, enriched,
+        "Assignments retrieved successfully"));
     }
 
     /**
