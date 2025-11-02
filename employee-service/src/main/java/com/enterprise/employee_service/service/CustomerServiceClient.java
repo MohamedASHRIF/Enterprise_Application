@@ -28,13 +28,28 @@ public class CustomerServiceClient {
 
     public Map<String, Object> getAppointmentDetails(Long appointmentId) {
         try {
-            String url = customerServiceUrl + "/appointments/" + appointmentId;
+            // Prefer the new non-breaking public endpoint if present
+            String publicUrl = customerServiceUrl + "/public/appointments/" + appointmentId;
+            try {
+                ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                        publicUrl, HttpMethod.GET, null,
+                        new ParameterizedTypeReference<Map<String, Object>>() {}
+                );
+                Map<String, Object> body = response.getBody();
+                log.info("Fetched appointment details from Customer Service (public) for id={} -> {}", appointmentId, body);
+                return body;
+            } catch (RestClientException e) {
+                // If public endpoint is not available or returns error, fall back to the original endpoint
+                log.debug("Public appointment endpoint unavailable for id={} (will try legacy): {}", appointmentId, e.toString());
+            }
+
+            String legacyUrl = customerServiceUrl + "/appointments/" + appointmentId;
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
-                url, HttpMethod.GET, null,
-                new ParameterizedTypeReference<Map<String, Object>>() {}
+                    legacyUrl, HttpMethod.GET, null,
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             Map<String, Object> body = response.getBody();
-            log.info("Fetched appointment details from Customer Service for id={} -> {}", appointmentId, body);
+            log.info("Fetched appointment details from Customer Service (legacy) for id={} -> {}", appointmentId, body);
             return body;
         } catch (RestClientResponseException e) {
             // HTTP status errors (4xx,5xx) - log status and body to diagnose extraction problems
