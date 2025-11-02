@@ -1,3 +1,6 @@
+server:
+  port: 8085
+
 spring:
   datasource:
     url: jdbc:postgresql://ep-weathered-paper-a1e2pqli-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require
