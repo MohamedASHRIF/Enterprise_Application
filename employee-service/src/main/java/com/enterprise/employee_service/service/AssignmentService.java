@@ -2,7 +2,6 @@ package com.enterprise.employee_service.service;
 
 import com.enterprise.employee_service.domain.*;
 import com.enterprise.employee_service.repository.AssignmentRepository;
-import com.enterprise.employee_service.repository.ScheduleRepository;
 import com.enterprise.employee_service.web.dto.AppointmentRequestDto;
 import com.enterprise.employee_service.web.dto.UserDto;
 import org.slf4j.Logger;
@@ -22,18 +21,15 @@ public class AssignmentService {
 
     private final AssignmentRepository assignmentRepository;
     private final EmployeeService employeeService;
-    private final ScheduleRepository scheduleRepository;
     private final NotificationClient notificationClient;
     private final CustomerServiceClient customerServiceClient;
 
     public AssignmentService(AssignmentRepository assignmentRepository,
                              EmployeeService employeeService,
-                             ScheduleRepository scheduleRepository,
                              NotificationClient notificationClient,
                              CustomerServiceClient customerServiceClient) {
         this.assignmentRepository = assignmentRepository;
         this.employeeService = employeeService;
-        this.scheduleRepository = scheduleRepository;
         this.notificationClient = notificationClient;
         this.customerServiceClient = customerServiceClient;
     }
@@ -81,21 +77,19 @@ public class AssignmentService {
             }
         }
 
-        // Choose least busy & available employee
+         // Choose least busy employee based on current workload
+        // Use Assignment status to check availability (not Schedule which is redundant)
+        // An employee is available if they have fewer ASSIGNED/IN_PROGRESS assignments
         Optional<UserDto> selectedEmployee = employees.stream()
-                .filter(emp -> {
-                    var schedules = scheduleRepository.findByEmployeeIdAndDate(emp.getId(), appointmentDate);
-                    return schedules == null || schedules.isEmpty(); // available if no schedule found
-                })
-                .min(Comparator.comparingInt(emp ->
-                        assignmentRepository.findByEmployeeIdAndStatus(emp.getId(), AssignmentStatus.ASSIGNED).size()));
+                .min(Comparator.comparingInt(emp -> {
+                    // Count active assignments (ASSIGNED or IN_PROGRESS)
+                    int assignedCount = assignmentRepository.findByEmployeeIdAndStatus(emp.getId(), AssignmentStatus.ASSIGNED).size();
+                    int inProgressCount = assignmentRepository.findByEmployeeIdAndStatus(emp.getId(), AssignmentStatus.IN_PROGRESS).size();
+                    return assignedCount + inProgressCount; // Total workload
+                }));
 
-        // If all are busy, still assign the least busy one
-        if (selectedEmployee.isEmpty()) {
-            selectedEmployee = employees.stream()
-                    .min(Comparator.comparingInt(emp ->
-                            assignmentRepository.findByEmployeeIdAndStatus(emp.getId(), AssignmentStatus.ASSIGNED).size()));
-        }
+        // All employees considered, we'll assign to the least busy one even if all are busy
+        // (The min comparator above already handles this)
 
         if (selectedEmployee.isEmpty()) {
             throw new RuntimeException("❌ No employees available for assignment.");
