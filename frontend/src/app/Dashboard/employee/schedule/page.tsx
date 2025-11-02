@@ -8,6 +8,7 @@ import {
     stopTimeLog,
     getTimeLogsForAssignment,
     updateAssignmentStatus,
+    getEmployeeWorkHours,
     type TimeLogResponse
 } from "@/app/api/employeeApi";
 
@@ -24,6 +25,7 @@ interface ScheduledTask {
     assignmentId?: number; // Backend assignment ID
     appointmentId?: number; // Backend appointment ID
     timeLogId?: number; // Active time log ID
+    timeLogs?: TimeLogResponse[];
 }
 
 export default function EmployeeSchedule() {
@@ -34,6 +36,11 @@ export default function EmployeeSchedule() {
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [tick, setTick] = useState(0); // updates every second to drive live timers
     const [isLoading, setIsLoading] = useState(true);
+    // windowStartISO is the first day shown in the 7-day sliding window (YYYY-MM-DD)
+    const [windowStartISO, setWindowStartISO] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [showEmptyDays, setShowEmptyDays] = useState<boolean>(true);
+    const [weeklyHoursStr, setWeeklyHoursStr] = useState<string>('0s');
+    const [todayHoursStr, setTodayHoursStr] = useState<string>('0s');
 
     useEffect(() => {
         // Check if user is authenticated and has EMPLOYEE role
@@ -91,15 +98,8 @@ export default function EmployeeSchedule() {
             const enrichedAssignments = await enrichAssignmentsWithDetails(assignmentsData);
             
             // Get time logs for each assignment to show start/end times
-            const scheduleData: { [key: string]: ScheduledTask[] } = {
-                'Monday': [],
-                'Tuesday': [],
-                'Wednesday': [],
-                'Thursday': [],
-                'Friday': [],
-                'Saturday': [],
-                'Sunday': []
-            };
+            // Build schedule keyed by ISO date strings (YYYY-MM-DD) so we can render a sliding 7-day window
+            const scheduleData: { [key: string]: ScheduledTask[] } = {};
 
             // Process each assignment
             for (const assignment of enrichedAssignments) {
@@ -110,22 +110,73 @@ export default function EmployeeSchedule() {
                     
                     if (assignment.assignmentId) {
                         timeLogs = await getTimeLogsForAssignment(assignment.assignmentId);
+                        // Normalize / sort logs by startTime asc so older logs appear first
+                        timeLogs = timeLogs.sort((a, b) => {
+                            const sa = a.startTime ? new Date(a.startTime).getTime() : 0;
+                            const sb = b.startTime ? new Date(b.startTime).getTime() : 0;
+                            return sa - sb;
+                        });
                         // Find active time log (started but not finished)
                         activeTimeLog = timeLogs.find(log => log.startTime && !log.endTime) || null;
                     }
 
-                    // Parse appointment date
+                    // Parse appointment date and use ISO date as key (YYYY-MM-DD)
+                    // IMPORTANT: avoid using `new Date(str).toISOString()` on date-only strings because
+                    // JS may treat 'YYYY-MM-DD' as UTC and shift the day depending on the local timezone.
                     const appointmentDate = assignment.appointmentDate || assignment.assignedDate;
                     if (!appointmentDate) continue;
-
-                    const date = new Date(appointmentDate);
-                    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+                    // If the server returns a full datetime like '2025-11-02T10:00:00', take the date part before 'T'.
+                    // If it returns 'YYYY-MM-DD', take the first 10 chars. Fallback to Date parsing only if needed.
+                    let isoDate: string;
+                    if (typeof appointmentDate === 'string' && appointmentDate.includes('T')) {
+                        isoDate = appointmentDate.split('T')[0];
+                    } else if (typeof appointmentDate === 'string' && appointmentDate.length >= 10) {
+                        isoDate = appointmentDate.slice(0, 10);
+                    } else {
+                        // last resort: parse with Date and convert to ISO (should be rare)
+                        isoDate = new Date(appointmentDate).toISOString().split('T')[0];
+                    }
+                    // For display label use a Date constructed at local midnight for the isoDate
+                    const localDay = new Date(isoDate + 'T00:00:00');
+                    const dayName = localDay.toLocaleDateString('en-US', { weekday: 'long' });
                     
                     // Format time
                     const appointmentTime = assignment.appointmentTime || '09:00 AM';
                     const time = appointmentTime.includes('AM') || appointmentTime.includes('PM') 
                         ? appointmentTime 
                         : formatTime12Hour(appointmentTime);
+
+                    // Compute accumulated duration (sum of all time logs) in seconds
+                    let totalSeconds = 0;
+                    let earliestStart: number | undefined = undefined;
+                    try {
+                        for (const tl of timeLogs) {
+                            if (!tl || !tl.startTime) continue;
+                            const s = new Date(tl.startTime).getTime();
+                            const e = tl.endTime ? new Date(tl.endTime).getTime() : Date.now();
+                            if (!earliestStart || s < earliestStart) earliestStart = s;
+                            if (e > s) totalSeconds += Math.max(0, Math.floor((e - s) / 1000));
+                        }
+                    } catch (e) {
+                        console.warn('Failed to compute total time for assignment', assignment.assignmentId, e);
+                    }
+
+                    let latestEnd: number | undefined = undefined;
+                    try {
+                        const ended = timeLogs.filter(t => t.endTime).map(t => new Date(t.endTime as string).getTime());
+                        if (ended.length) latestEnd = Math.max(...ended);
+                    } catch (e) {
+                        // ignore
+                    }
+
+                    const formatDuration = (secs: number) => {
+                        const h = Math.floor(secs / 3600);
+                        const m = Math.floor((secs % 3600) / 60);
+                        const s = secs % 60;
+                        if (h > 0) return `${h}h ${m}m`;
+                        if (m > 0) return `${m}m ${s}s`;
+                        return `${s}s`;
+                    };
 
                     const task: ScheduledTask = {
                         id: assignment.id,
@@ -136,27 +187,72 @@ export default function EmployeeSchedule() {
                         status: assignment.status === 'ASSIGNED' ? 'Scheduled' : 
                                 assignment.status === 'IN_PROGRESS' ? 'In Progress' :
                                 assignment.status === 'COMPLETED' ? 'Completed' : assignment.status,
-                        duration: assignment.estimatedDuration || 'N/A',
-                        startTimestamp: activeTimeLog?.startTime 
-                            ? new Date(activeTimeLog.startTime).getTime() 
-                            : undefined,
-                        endTimestamp: activeTimeLog?.endTime 
-                            ? new Date(activeTimeLog.endTime).getTime() 
-                            : undefined,
+                        // Show accumulated duration (sum of previous logs + active log)
+                        duration: totalSeconds > 0 ? formatDuration(totalSeconds) : (assignment.estimatedDuration || 'N/A'),
+                        // Use active log timestamps for live display, fallback to earliestStart for start time
+                        startTimestamp: activeTimeLog?.startTime
+                            ? new Date(activeTimeLog.startTime).getTime()
+                            : earliestStart,
+                        // For end timestamp show the latest ended log's time if no active log
+                        endTimestamp: activeTimeLog?.endTime
+                            ? new Date(activeTimeLog.endTime).getTime()
+                            : latestEnd,
                         assignmentId: assignment.assignmentId,
                         appointmentId: assignment.appointmentId,
                         timeLogId: activeTimeLog?.id
+                        ,
+                        timeLogs: timeLogs
                     };
 
-                    if (scheduleData[dayName]) {
-                        scheduleData[dayName].push(task);
-                    }
+                    if (!scheduleData[isoDate]) scheduleData[isoDate] = [];
+                    scheduleData[isoDate].push(task);
                 } catch (err) {
                     console.error(`Error processing assignment ${assignment.id}:`, err);
                 }
             }
 
             setSchedule(scheduleData);
+            // default window start: today
+            try {
+                const todayISO = new Date().toISOString().split('T')[0];
+                setWindowStartISO(todayISO);
+            } catch (e) {
+                // ignore
+            }
+            // Fetch employee work-hours and compute weekly/today totals (human readable)
+            try {
+                const workHours = await getEmployeeWorkHours(employeeId);
+                // compute week range (Monday..Sunday)
+                const now = new Date();
+                const day = now.getDay(); // 0 (Sun) - 6 (Sat)
+                const diffToMonday = (day + 6) % 7; // days since Monday
+                const monday = new Date(now);
+                monday.setDate(now.getDate() - diffToMonday);
+                monday.setHours(0,0,0,0);
+                const sunday = new Date(monday);
+                sunday.setDate(monday.getDate() + 6);
+                sunday.setHours(23,59,59,999);
+
+                const mondayISO = monday.toISOString().split('T')[0];
+                const sundayISO = sunday.toISOString().split('T')[0];
+                const todayISO = now.toISOString().split('T')[0];
+
+                let weeklySeconds = 0;
+                let todaySeconds = 0;
+                for (const wh of workHours) {
+                    if (!wh || !wh.workDate) continue;
+                    const d = wh.workDate;
+                    if (d >= mondayISO && d <= sundayISO) weeklySeconds += wh.totalSeconds || 0;
+                    if (d === todayISO) todaySeconds += wh.totalSeconds || 0;
+                }
+
+                setWeeklyHoursStr(formatSecondsToHuman(weeklySeconds));
+                setTodayHoursStr(formatSecondsToHuman(todaySeconds));
+            } catch (e) {
+                console.warn('Failed to fetch work hours for employee', employeeId, e);
+                setWeeklyHoursStr('0s');
+                setTodayHoursStr('0s');
+            }
         } catch (error) {
             console.error('Error fetching schedule data:', error);
             alert('Failed to load schedule. Please try again.');
@@ -178,15 +274,32 @@ export default function EmployeeSchedule() {
     };
 
     const getTotalTime = (tasks: ScheduledTask[]) => {
-        return tasks.reduce((total, task) => {
+        const toHours = (dur: string) => {
+            if (!dur) return 0;
+            // formats handled: "Xh Ym", "Xm Ys", "Xs", or numeric fallback
             try {
-                const durationStr = task.duration.replace(/[^0-9]/g, '');
-                const duration = parseInt(durationStr) || 0;
-                return total + duration;
-            } catch {
-                return total;
-            }
-        }, 0);
+                const hMatch = dur.match(/(\d+)\s*h/);
+                const mMatch = dur.match(/(\d+)\s*m/);
+                const sMatch = dur.match(/(\d+)\s*s/);
+                let seconds = 0;
+                if (hMatch) seconds += parseInt(hMatch[1], 10) * 3600;
+                if (mMatch) seconds += parseInt(mMatch[1], 10) * 60;
+                if (sMatch) seconds += parseInt(sMatch[1], 10);
+                if (seconds > 0) return seconds / 3600;
+                // fallback: try HH:MM:SS or numeric minutes
+                if (dur.includes(':')) {
+                    const parts = dur.split(':').map(p => parseInt(p, 10) || 0);
+                    // hh:mm:ss or mm:ss
+                    if (parts.length === 3) return parts[0] + parts[1] / 60 + parts[2] / 3600;
+                    if (parts.length === 2) return parts[0] / 60 + parts[1] / 3600;
+                }
+                const num = parseFloat(dur);
+                if (!isNaN(num)) return num; // assume hours
+            } catch { /* ignore */ }
+            return 0;
+        };
+
+        return tasks.reduce((total, task) => total + toHours(task.duration || ''), 0);
     };
 
     const handleStartWork = async (task: ScheduledTask) => {
@@ -201,20 +314,60 @@ export default function EmployeeSchedule() {
         }
 
         try {
-            // Start time log
+            // Start time log (creates a new TimeLog)
             const timeLog = await startTimeLog(task.assignmentId, `Started work on ${task.service}`);
-            
-            // Update assignment status to IN_PROGRESS
+
+            // Update assignment status to IN_PROGRESS on server
             await updateAssignmentStatus(task.assignmentId, 'IN_PROGRESS');
-            
-            // Refresh schedule data
-            if (userId) {
-                await fetchScheduleData(userId);
-            }
-            
+
+            // Optimistically update local schedule: append new time log and mark in-progress
+            setSchedule((prev) => {
+                const cloned: { [key: string]: ScheduledTask[] } = {};
+                Object.keys(prev).forEach((day) => {
+                    cloned[day] = prev[day].map((t) => {
+                        if (t.assignmentId === task.assignmentId) {
+                            const existingLogs = t.timeLogs ? [...t.timeLogs] : [];
+                            const updatedLogs = [...existingLogs, timeLog];
+                            return rebuildTaskFromLogs(t, updatedLogs);
+                        }
+                        return t;
+                    });
+                });
+                return cloned;
+            });
+
             alert(`Started work on: ${task.service}`);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error starting work:', error);
+            // If server returned 409 (active log exists), refresh logs for this assignment and rebuild task
+            if (error?.response?.status === 409 && task.assignmentId) {
+                try {
+                    const freshLogs = await getTimeLogsForAssignment(task.assignmentId);
+                    // sort and rebuild
+                    const sorted = freshLogs.sort((a, b) => {
+                        const sa = a.startTime ? new Date(a.startTime).getTime() : 0;
+                        const sb = b.startTime ? new Date(b.startTime).getTime() : 0;
+                        return sa - sb;
+                    });
+                    setSchedule((prev) => {
+                        const cloned: { [key: string]: ScheduledTask[] } = {};
+                        Object.keys(prev).forEach((day) => {
+                            cloned[day] = prev[day].map((t) => {
+                                if (t.assignmentId === task.assignmentId) {
+                                    return rebuildTaskFromLogs(t, sorted);
+                                }
+                                return t;
+                            });
+                        });
+                        return cloned;
+                    });
+                    alert('An active timer already exists for this assignment. Refreshed logs.');
+                    return;
+                } catch (e) {
+                    console.error('Failed to refresh logs after 409:', e);
+                }
+            }
+
             alert('Failed to start work. Please try again.');
         }
     };
@@ -231,23 +384,142 @@ export default function EmployeeSchedule() {
         }
 
         try {
-            // Stop time log
-            await stopTimeLog(task.timeLogId);
-            
-            // Update assignment status to COMPLETED
+            // Stop time log (finish current active log)
+            const stopped = await stopTimeLog(task.timeLogId);
+
+            // Update assignment status to COMPLETED on server
             if (task.assignmentId) {
                 await updateAssignmentStatus(task.assignmentId, 'COMPLETED');
             }
-            
-            // Refresh schedule data
-            if (userId) {
-                await fetchScheduleData(userId);
-            }
-            
+
+            // Optimistically update local schedule: mark the stopped log's endTime and set status Completed
+            setSchedule((prev) => {
+                const cloned: { [key: string]: ScheduledTask[] } = {};
+                Object.keys(prev).forEach((day) => {
+                    cloned[day] = prev[day].map((t) => {
+                        if (t.assignmentId === task.assignmentId) {
+                            const logs = t.timeLogs ? t.timeLogs.map((l) => l.id === stopped.id ? stopped : l) : [stopped];
+                            return rebuildTaskFromLogs(t, logs);
+                        }
+                        return t;
+                    });
+                });
+                return cloned;
+            });
+
             alert(`Finished work on: ${task.service}`);
         } catch (error) {
             console.error('Error finishing work:', error);
             alert('Failed to finish work. Please try again.');
+        }
+    };
+
+    const handlePauseWork = async (task: ScheduledTask) => {
+        if (!task.timeLogId) {
+            alert('No active time log to pause.');
+            return;
+        }
+
+        if (task.status !== 'In Progress' && task.status !== 'IN_PROGRESS') {
+            alert('Can only pause tasks that are In Progress.');
+            return;
+        }
+
+        try {
+            // Stop the active time log (pauses the timer) and get stopped log
+            const stopped = await stopTimeLog(task.timeLogId);
+            // Update assignment status to PAUSED
+            if (task.assignmentId) {
+                await updateAssignmentStatus(task.assignmentId, 'PAUSED');
+            }
+
+            // Optimistically update local schedule: mark the stopped log's endTime and set status Paused
+            setSchedule((prev) => {
+                const cloned: { [key: string]: ScheduledTask[] } = {};
+                Object.keys(prev).forEach((day) => {
+                    cloned[day] = prev[day].map((t) => {
+                        if (t.assignmentId === task.assignmentId) {
+                            const logs = t.timeLogs ? t.timeLogs.map((l) => l.id === stopped.id ? stopped : l) : [stopped];
+                            return rebuildTaskFromLogs(t, logs);
+                        }
+                        return t;
+                    });
+                });
+                return cloned;
+            });
+
+            alert(`Paused work on: ${task.service}`);
+        } catch (error) {
+            console.error('Error pausing work:', error);
+            alert('Failed to pause work. Please try again.');
+        }
+    };
+
+    const handleResumeWork = async (task: ScheduledTask) => {
+        if (!task.assignmentId) {
+            alert('Assignment ID not found.');
+            return;
+        }
+
+        if (task.status !== 'PAUSED') {
+            alert('Can only resume tasks that are paused.');
+            return;
+        }
+
+        try {
+            // Start a new time log (resume) and get the created log object
+            const newLog = await startTimeLog(task.assignmentId, `Resumed work on ${task.service}`);
+            // Update assignment status to IN_PROGRESS
+            await updateAssignmentStatus(task.assignmentId, 'IN_PROGRESS');
+
+            // Optimistically update local schedule state to append the new time log as a new line
+            setSchedule((prev) => {
+                const cloned: { [key: string]: ScheduledTask[] } = {};
+                Object.keys(prev).forEach((day) => {
+                    cloned[day] = prev[day].map((t) => {
+                        if (t.assignmentId === task.assignmentId) {
+                            const existingLogs = t.timeLogs ? [...t.timeLogs] : [];
+                            const updatedLogs = [...existingLogs, newLog];
+                            return rebuildTaskFromLogs(t, updatedLogs);
+                        }
+                        return t;
+                    });
+                });
+                return cloned;
+            });
+
+            alert(`Resumed work on: ${task.service}`);
+        } catch (error: any) {
+            console.error('Error resuming work:', error);
+            // handle 409 same as start: refresh logs
+            if (error?.response?.status === 409 && task.assignmentId) {
+                try {
+                    const freshLogs = await getTimeLogsForAssignment(task.assignmentId);
+                    const sorted = freshLogs.sort((a, b) => {
+                        const sa = a.startTime ? new Date(a.startTime).getTime() : 0;
+                        const sb = b.startTime ? new Date(b.startTime).getTime() : 0;
+                        return sa - sb;
+                    });
+                    setSchedule((prev) => {
+                        const cloned: { [key: string]: ScheduledTask[] } = {};
+                        Object.keys(prev).forEach((day) => {
+                            cloned[day] = prev[day].map((t) => {
+                                if (t.assignmentId === task.assignmentId) {
+                                    return rebuildTaskFromLogs(t, sorted);
+                                }
+                                return t;
+                            });
+                        });
+                        return cloned;
+                    });
+                    alert('An active timer already exists for this assignment. Refreshed logs.');
+                    return;
+                } catch (e) {
+                    console.error('Failed to refresh logs after 409:', e);
+                }
+            }
+
+            alert('Failed to resume work. Please try again.');
         }
     };
 
@@ -272,6 +544,105 @@ export default function EmployeeSchedule() {
         return `${hh}:${mm}:${ss}`;
     };
 
+    const formatSecondsToHuman = (secs: number) => {
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        const parts: string[] = [];
+        if (h > 0) parts.push(`${h} ${h === 1 ? 'hr' : 'hrs'}`);
+        if (m > 0) parts.push(`${m} ${m === 1 ? 'min' : 'mins'}`);
+        if (s > 0 || parts.length === 0) parts.push(`${s} ${s === 1 ? 'sec' : 'secs'}`);
+        return parts.join(' ');
+    };
+
+    // Rebuild a ScheduledTask summary from its timeLogs (used for optimistic updates)
+    const rebuildTaskFromLogs = (t: ScheduledTask, logs: TimeLogResponse[]): ScheduledTask => {
+        let totalSeconds = 0;
+        let earliestStart: number | undefined = undefined;
+        let latestEnd: number | undefined = undefined;
+        let activeLog: TimeLogResponse | undefined = undefined;
+        const currentTime = Date.now(); // Use consistent time for active log calculation
+
+        for (const tl of logs) {
+            if (!tl || !tl.startTime) continue;
+            const s = new Date(tl.startTime).getTime();
+            const e = tl.endTime ? new Date(tl.endTime).getTime() : undefined;
+            
+            if (!earliestStart || s < earliestStart) earliestStart = s;
+            if (e && (!latestEnd || e > latestEnd)) latestEnd = e;
+            
+            // Calculate duration for this log entry
+            if (e) {
+                // Completed log: duration from start to end
+                totalSeconds += Math.max(0, Math.floor((e - s) / 1000));
+            } else {
+                // Active log: duration from start to now (will update on next tick)
+                activeLog = tl;
+                totalSeconds += Math.max(0, Math.floor((currentTime - s) / 1000));
+            }
+        }
+
+        const durationStr = totalSeconds > 0 ? formatSecondsToHuman(totalSeconds) : (t.duration || 'N/A');
+
+        return {
+            ...t,
+            timeLogs: logs.sort((a, b) => {
+                // Sort by start time (oldest first)
+                const sa = a.startTime ? new Date(a.startTime).getTime() : 0;
+                const sb = b.startTime ? new Date(b.startTime).getTime() : 0;
+                return sa - sb;
+            }),
+            timeLogId: activeLog ? activeLog.id : undefined,
+            status: activeLog ? 'In Progress' : (t.status === 'COMPLETED' ? 'COMPLETED' : (logs && logs.length > 0 ? 'PAUSED' : t.status)),
+            startTimestamp: activeLog?.startTime ? new Date(activeLog.startTime).getTime() : earliestStart,
+            endTimestamp: activeLog?.endTime ? new Date(activeLog.endTime).getTime() : latestEnd,
+            duration: durationStr
+        } as ScheduledTask;
+    };
+
+    // Build 7-day sliding window starting at windowStartISO
+    const buildWindowDays = (startISO: string) => {
+        const list: { iso: string; label: string }[] = [];
+        const base = new Date(startISO + 'T00:00:00');
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(base);
+            d.setDate(base.getDate() + i);
+            const iso = d.toISOString().split('T')[0];
+            const label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+            list.push({ iso, label });
+        }
+        return list;
+    };
+
+    const renderDays = (() => {
+        const base = buildWindowDays(windowStartISO);
+        if (!showEmptyDays) {
+            return base.filter(d => schedule[d.iso] && schedule[d.iso].length > 0);
+        }
+        return base;
+    })();
+
+    const jumpToToday = () => {
+        try {
+            const todayISO = new Date().toISOString().split('T')[0];
+            setWindowStartISO(todayISO);
+        } catch (e) {
+            // ignore
+        }
+    };
+
+    const prevWindow = () => {
+        const cur = new Date(windowStartISO + 'T00:00:00');
+        cur.setDate(cur.getDate() - 7);
+        setWindowStartISO(cur.toISOString().split('T')[0]);
+    };
+
+    const nextWindow = () => {
+        const cur = new Date(windowStartISO + 'T00:00:00');
+        cur.setDate(cur.getDate() + 7);
+        setWindowStartISO(cur.toISOString().split('T')[0]);
+    };
+
     if (!userRole) {
         return (
             <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -294,10 +665,39 @@ export default function EmployeeSchedule() {
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-white mb-2">My Schedule</h1>
                     <p className="text-gray-400">View your weekly schedule and appointments</p>
+                    <div className="mt-4 flex items-center gap-3">
+                        <button
+                            onClick={prevWindow}
+                            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded-md text-sm border border-gray-700"
+                        >
+                            ← Previous
+                        </button>
+                        <button
+                            onClick={jumpToToday}
+                            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded-md text-sm border border-gray-700"
+                        >
+                            Today
+                        </button>
+                        <button
+                            onClick={nextWindow}
+                            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded-md text-sm border border-gray-700"
+                        >
+                            Next →
+                        </button>
+                        <button
+                            onClick={() => setShowEmptyDays(s => !s)}
+                            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded-md text-sm border border-gray-700"
+                        >
+                            {showEmptyDays ? 'Hide Empty Days' : 'Show Empty Days'}
+                        </button>
+                        {windowStartISO && (
+                            <div className="ml-3 text-sm text-gray-300">Showing: <span className="font-semibold text-white">{renderDays.length ? `${renderDays[0].label} — ${renderDays[renderDays.length-1].label}` : ''}</span></div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Weekly Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
                         <p className="text-gray-400 text-sm">Total Appointments</p>
                         <p className="text-3xl font-bold text-white mt-2">
@@ -312,13 +712,12 @@ export default function EmployeeSchedule() {
                     </div>
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
                         <p className="text-gray-400 text-sm">Total Time</p>
-                        <p className="text-3xl font-bold text-green-500 mt-2">
-                            {getTotalTime(Object.values(schedule).flat())} hrs
-                        </p>
-                    </div>
-                    <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-                        <p className="text-gray-400 text-sm">Available Hours</p>
-                        <p className="text-3xl font-bold text-purple-500 mt-2">40h</p>
+                        <div className="mt-2 text-green-500">
+                            <p className="text-2xl font-bold">This Week</p>
+                            <p className="text-xl font-semibold mt-1">{weeklyHoursStr}</p>
+                            <p className="text-2xl font-bold mt-4">Today</p>
+                            <p className="text-xl font-semibold mt-1">{todayHoursStr}</p>
+                        </div>
                     </div>
                 </div>
 
@@ -329,29 +728,34 @@ export default function EmployeeSchedule() {
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto"></div>
                             <p className="text-gray-400 mt-4">Loading schedule...</p>
                         </div>
+                    ) : renderDays.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400">
+                            <p className="text-lg">No appointments scheduled for this week.</p>
+                            <p className="text-sm mt-2">Try toggling "Show Empty Days" or check another week.</p>
+                        </div>
                     ) : (
-                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
-                            <div key={day} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-                                <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 px-6 py-4 border-b border-gray-800">
-                                    <div className="flex items-center justify-between">
-                                        <h2 className="text-xl font-bold text-white">{day}</h2>
-                                        <span className="px-3 py-1 bg-gray-800 text-gray-300 rounded-full text-sm font-semibold">
-                                            {schedule[day]?.length || 0} appointments
-                                        </span>
-                                    </div>
+                        renderDays.map((day: { iso: string; label: string }) => (
+                        <div key={day.iso} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                            <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 px-6 py-4 border-b border-gray-800">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-white">{day.label}</h2>
+                                    <span className="px-3 py-1 bg-gray-800 text-gray-300 rounded-full text-sm font-semibold">
+                                        {schedule[day.iso]?.length || 0} appointments
+                                    </span>
                                 </div>
+                            </div>
 
-                                <div className="p-6">
-                                    {!schedule[day] || schedule[day].length === 0 ? (
+                            <div className="p-6">
+                                {!schedule[day.iso] || schedule[day.iso].length === 0 ? (
                                     <div className="text-center py-8 text-gray-400">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mx-auto mb-2 opacity-50">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-16 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-16 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                                         </svg>
-                                        <p>No appointments scheduled for {day}</p>
+                                        <p>No appointments scheduled for {day.label}</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        {schedule[day].map((task) => (
+                                        {schedule[day.iso].map((task: ScheduledTask) => (
                                             <div key={task.id} className="bg-gray-800 rounded-lg p-5 border border-gray-700 hover:border-cyan-500/50 transition">
                                                 <div className="flex items-start justify-between">
                                                     <div className="flex-1">
@@ -364,71 +768,154 @@ export default function EmployeeSchedule() {
                                                                 <p className="text-gray-400 text-sm">{task.customerName} • {task.vehicle}</p>
                                                             </div>
                                                         </div>
-                                                        {/* Timing */}
-                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mt-3">
-                                                            <div className="bg-gray-900 rounded-lg border border-gray-700 p-3">
-                                                                <p className="text-gray-400">Start</p>
-                                                                <p className="text-white font-medium">{formatTime(task.startTimestamp)}</p>
+                                                            {/* Time Logs Display */}
+                                                            {task.timeLogs && task.timeLogs.length > 0 ? (() => {
+                                                                // Recalculate total duration for live updates (especially for active logs)
+                                                                let totalSeconds = 0;
+                                                                task.timeLogs?.forEach((tl: TimeLogResponse) => {
+                                                                    if (!tl.startTime) return;
+                                                                    const startTime = new Date(tl.startTime).getTime();
+                                                                    const endTime = tl.endTime ? new Date(tl.endTime).getTime() : undefined;
+                                                                    if (endTime) {
+                                                                        totalSeconds += Math.max(0, Math.floor((endTime - startTime) / 1000));
+                                                                    } else {
+                                                                        // Active log - use current time
+                                                                        totalSeconds += Math.max(0, Math.floor((Date.now() - startTime) / 1000));
+                                                                    }
+                                                                });
+                                                                const totalDurationStr = totalSeconds > 0 ? formatSecondsToHuman(totalSeconds) : '0s';
+                                                                
+                                                                return (
+                                                                <div className="mt-4 space-y-2">
+                                                                    <div className="flex items-center justify-between mb-2">
+                                                                        <p className="text-gray-400 text-sm font-semibold">Time Logs</p>
+                                                                        <p className="text-white text-sm font-bold">
+                                                                            Total: {totalDurationStr}
+                                                                        </p>
+                                                                    </div>
+                                                                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                                                                        {task.timeLogs.map((tl: TimeLogResponse, idx: number) => {
+                                                                            const startTime = tl.startTime ? new Date(tl.startTime).getTime() : undefined;
+                                                                            const endTime = tl.endTime ? new Date(tl.endTime).getTime() : undefined;
+                                                                            const isActive = !endTime;
+                                                                            
+                                                                            // Calculate elapsed duration for this log
+                                                                            // Use tick to force re-render for active logs (updates every second)
+                                                                            let elapsedSeconds = 0;
+                                                                            if (startTime) {
+                                                                                const end = endTime || Date.now(); // Current time for active logs
+                                                                                elapsedSeconds = Math.max(0, Math.floor((end - startTime) / 1000));
+                                                                            }
+                                                                            
+                                                                            return (
+                                                                                <div 
+                                                                                    key={tl.id || idx} 
+                                                                                    className={`bg-gray-900 rounded-lg border p-3 ${
+                                                                                        isActive ? 'border-yellow-500/50' : 'border-gray-700'
+                                                                                    }`}
+                                                                                >
+                                                                                    <div className="grid grid-cols-3 gap-2 text-xs">
+                                                                                        <div>
+                                                                                            <p className="text-gray-500 mb-1">Start</p>
+                                                                                            <p className="text-white font-medium">
+                                                                                                {startTime ? formatTime(startTime) : '-'}
+                                                                                            </p>
+                                                                                        </div>
+                                                                                        <div>
+                                                                                            <p className="text-gray-500 mb-1">End</p>
+                                                                                            <p className={`font-medium ${isActive ? 'text-yellow-400' : 'text-white'}`}>
+                                                                                                {endTime ? formatTime(endTime) : (isActive ? 'In Progress' : '-')}
+                                                                                            </p>
+                                                                                        </div>
+                                                                                        <div>
+                                                                                            <p className="text-gray-500 mb-1">Elapsed</p>
+                                                                                            <p className={`font-semibold ${isActive ? 'text-yellow-400' : 'text-white'}`}>
+                                                                                                {elapsedSeconds > 0 
+                                                                                                    ? formatSecondsToHuman(elapsedSeconds)
+                                                                                                    : '-'
+                                                                                                }
+                                                                                                {isActive && ' (active)'}
+                                                                                            </p>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                                );
+                                                            })() : (
+                                                                <div className="mt-4 bg-gray-900 rounded-lg border border-gray-700 p-3 text-sm">
+                                                                    <p className="text-gray-500">No time logs yet. Click "Start Work" to begin tracking.</p>
                                                             </div>
-                                                            <div className="bg-gray-900 rounded-lg border border-gray-700 p-3">
-                                                                <p className="text-gray-400">End</p>
-                                                                <p className="text-white font-medium">{formatTime(task.endTimestamp)}</p>
-                                                            </div>
-                                                            <div className="bg-gray-900 rounded-lg border border-gray-700 p-3">
-                                                                <p className="text-gray-400">Elapsed</p>
-                                                                <p className="text-white font-medium">{formatElapsed(task.startTimestamp, task.endTimestamp)}</p>
-                                                            </div>
-                                                        </div>
+                                                            )}
                                                     </div>
                                                     <div className="flex items-center gap-3">
                                                         <div className="text-right">
                                                             <p className="text-gray-400 text-sm">Duration</p>
                                                             <p className="text-white font-semibold">{task.duration}</p>
                                                         </div>
-                                                        {(task.status === 'In Progress' || task.status === 'IN_PROGRESS') && (
-                                                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-500/20 text-yellow-400">
-                                                                In Progress
-                                                            </span>
-                                                        )}
-                                                        {(task.status === 'Scheduled' || task.status === 'ASSIGNED') && (
-                                                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-500/20 text-blue-400">
-                                                                Scheduled
-                                                            </span>
-                                                        )}
-                                                        {task.status === 'COMPLETED' && (
-                                                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-500/20 text-green-400">
-                                                                Completed
-                                                            </span>
-                                                        )}
-                                                        {task.status === 'PAUSED' && (
-                                                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-500/20 text-orange-400">
-                                                                Paused
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                                            {(task.status === 'In Progress' || task.status === 'IN_PROGRESS') && (
+                                                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-500/20 text-yellow-400">
+                                                                    In Progress
+                                                                </span>
+                                                            )}
+                                                            {(task.status === 'Scheduled' || task.status === 'ASSIGNED') && (
+                                                        <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-500/20 text-blue-400">
+                                                                    Scheduled
+                                                                </span>
+                                                            )}
+                                                            {task.status === 'COMPLETED' && (
+                                                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-500/20 text-green-400">
+                                                                    Completed
+                                                                </span>
+                                                            )}
+                                                            {task.status === 'PAUSED' && (
+                                                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-500/20 text-orange-400">
+                                                                    Paused
+                                                        </span>
+                                                            )}
+                                                        </div>
                                                 </div>
                                                 <div className="mt-4 flex gap-2">
-                                                    {(task.status === 'In Progress' || task.status === 'IN_PROGRESS') && task.timeLogId ? (
+                                                        {task.status === 'In Progress' || task.status === 'IN_PROGRESS' ? (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handlePauseWork(task)}
+                                                                    className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold rounded-lg transition text-sm"
+                                                                >
+                                                                    Pause
+                                                                </button>
                                                         <button 
                                                             onClick={() => handleFinishWork(task)}
                                                             className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-semibold rounded-lg transition text-sm"
                                                         >
                                                             Finish Work
                                                         </button>
-                                                    ) : (task.status === 'Scheduled' || task.status === 'ASSIGNED') ? (
+                                                            </>
+                                                        ) : task.status === 'PAUSED' ? (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleResumeWork(task)}
+                                                                    className="flex-1 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-lg transition text-sm"
+                                                                >
+                                                                    Resume Work
+                                                                </button>
+                                                            </>
+                                                        ) : task.status === 'Scheduled' || task.status === 'ASSIGNED' ? (
                                                         <button 
                                                             onClick={() => handleStartWork(task)}
                                                             className="flex-1 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-lg transition text-sm"
                                                         >
                                                             Start Work
                                                         </button>
-                                                    ) : (
-                                                        <button 
-                                                            disabled
-                                                            className="flex-1 px-4 py-2 bg-gray-600 text-gray-400 font-semibold rounded-lg cursor-not-allowed text-sm"
-                                                        >
-                                                            {task.status === 'COMPLETED' ? 'Completed' : task.status}
-                                                        </button>
+                                                        ) : (
+                                                            <button 
+                                                                disabled
+                                                                className="flex-1 px-4 py-2 bg-gray-600 text-gray-400 font-semibold rounded-lg cursor-not-allowed text-sm"
+                                                            >
+                                                                {task.status === 'COMPLETED' ? 'Completed' : task.status}
+                                                            </button>
                                                     )}
                                                     <button 
                                                         onClick={() => handleViewDetails(task)}
@@ -443,7 +930,7 @@ export default function EmployeeSchedule() {
                                 )}
                             </div>
                         </div>
-                    ))
+                        ))
                     )}
                 </div>
             </div>
@@ -505,6 +992,38 @@ export default function EmployeeSchedule() {
                             <div>
                                 <p className="text-gray-400 text-sm mb-1">Elapsed</p>
                                 <p className="text-white font-semibold">{formatElapsed(selectedTask.startTimestamp, selectedTask.endTimestamp)}</p>
+                            </div>
+                            <div>
+                                <p className="text-gray-400 text-sm mb-1">Total Duration</p>
+                                <p className="text-white font-semibold">{selectedTask.duration}</p>
+                            </div>
+                            <div>
+                                <p className="text-gray-400 text-sm mb-1">Time Log History</p>
+                                <div className="text-white text-sm mt-2 space-y-2">
+                                    {selectedTask.timeLogs && selectedTask.timeLogs.length > 0 ? (
+                                        selectedTask.timeLogs.map((tl: TimeLogResponse) => {
+                                            const s = tl.startTime ? new Date(tl.startTime).getTime() : undefined;
+                                            const e = tl.endTime ? new Date(tl.endTime).getTime() : undefined;
+                                            const durSec = s ? Math.max(0, Math.floor(((e ?? Date.now()) - s) / 1000)) : 0;
+                                            return (
+                                                <div key={tl.id} className="bg-gray-800 p-3 rounded-md border border-gray-700">
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            <div className="text-gray-300">Start: <span className="text-white">{formatTime(s)}</span></div>
+                                                            <div className="text-gray-300">End: <span className="text-white">{formatTime(e)}</span></div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="text-gray-300">Duration</div>
+                                                            <div className="text-white font-semibold">{formatSecondsToHuman(durSec)} {e ? '' : '(active)'}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="text-gray-400">No time logs recorded for this assignment.</div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                         <div className="flex justify-end mt-6">
