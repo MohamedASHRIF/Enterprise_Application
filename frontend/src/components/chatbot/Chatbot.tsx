@@ -66,19 +66,37 @@ export default function Chatbot() {
     // only run when open changes or number of messages changes
   }, [open, messages.length]);
 
-  function sendMessage() {
+  async function sendMessage() {
     const text = input.trim();
     if (!text) return;
     const userMsg: Message = { id: idRef.current++, sender: "user", text };
     setMessages((m) => [...m, userMsg]);
     setInput("");
 
-    // Simulate bot thinking
+    // backend 
+    try {
+      const res = await fetch("http://localhost:8086/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const botMsg: Message = { id: idRef.current++, sender: "bot", text: data.reply };
+        setMessages((m) => [...m, botMsg]);
+        return;
+      }
+    } catch (e) {
+      // continue to fallback
+      // console.warn("Chat backend unavailable", e);
+    }
+
+    // Fallback to local generator if backend not available
     setTimeout(() => {
       const reply = generateBotReply(text);
       const botMsg: Message = { id: idRef.current++, sender: "bot", text: reply };
       setMessages((m) => [...m, botMsg]);
-    }, 450);
+    }, 350);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -95,7 +113,7 @@ export default function Chatbot() {
         className={styles.toggleButton}
         onClick={() => setOpen((o) => !o)}
       >
-        {/* message icon to match other emoji icons used across the app */}
+        {/* message icon */}
         ✉️
       </button>
 
