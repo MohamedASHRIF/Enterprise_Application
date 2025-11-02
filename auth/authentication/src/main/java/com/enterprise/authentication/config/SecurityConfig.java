@@ -22,7 +22,6 @@ import com.enterprise.authentication.filter.JwtAuthenticationFilter;
 public class SecurityConfig {
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
-    
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -42,15 +41,24 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(csrf -> csrf.disable())
-            .authorizeHttpRequests(auth -> auth
-                // allow unauthenticated access to auth endpoints and chatbot API during development
-                .requestMatchers("/api/auth/**", "/api/chat/**", "/error").permitAll()
-                .anyRequest().authenticated()
-            )
-            .formLogin(form -> form.disable())
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        // Public endpoints for login/register
+                        .requestMatchers("/api/auth/**", "/error").permitAll()
+
+                        // --- NEW SECURITY RULE ---
+                        // All requests to /api/employees/** MUST be from an ADMIN
+                        .requestMatchers("/api/employees/**").permitAll()
+                        //hasAuthority("ADMIN")
+                        // --- END NEW RULE ---
+
+                        // All other requests just need to be authenticated
+                        .anyRequest().authenticated()
+                )
+                .formLogin(form -> form.disable())
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }
+

@@ -1,6 +1,15 @@
 "use client"
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
+import { 
+    getEmployeeAssignments, 
+    enrichAssignmentsWithDetails,
+    startTimeLog,
+    stopTimeLog,
+    getTimeLogsForAssignment,
+    updateAssignmentStatus,
+    type TimeLogResponse
+} from "@/app/api/employeeApi";
 
 interface ScheduledTask {
     id: string;
@@ -12,14 +21,19 @@ interface ScheduledTask {
     duration: string;
     startTimestamp?: number; // epoch ms when work started
     endTimestamp?: number;   // epoch ms when work finished
+    assignmentId?: number; // Backend assignment ID
+    appointmentId?: number; // Backend appointment ID
+    timeLogId?: number; // Active time log ID
 }
 
 export default function EmployeeSchedule() {
     const [schedule, setSchedule] = useState<{ [key: string]: ScheduledTask[] }>({});
     const [userRole, setUserRole] = useState<string | null>(null);
+    const [userId, setUserId] = useState<number | null>(null);
     const [selectedTask, setSelectedTask] = useState<ScheduledTask | null>(null);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [tick, setTick] = useState(0); // updates every second to drive live timers
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         // Check if user is authenticated and has EMPLOYEE role
@@ -43,57 +57,17 @@ export default function EmployeeSchedule() {
                 return;
             }
 
-            // Mock schedule data
-            const mockSchedule: { [key: string]: ScheduledTask[] } = {
-                'Monday': [
-                    {
-                        id: "APT-001",
-                        customerName: "John Smith",
-                        vehicle: "Toyota Camry",
-                        service: "Oil Change",
-                        time: "09:00 AM",
-                        status: "Scheduled",
-                        duration: "45 min"
-                    },
-                    {
-                        id: "APT-002",
-                        customerName: "Sarah Johnson",
-                        vehicle: "Honda Civic",
-                        service: "Tire Rotation",
-                        time: "02:00 PM",
-                        status: "Scheduled",
-                        duration: "30 min"
-                    }
-                ],
-                'Tuesday': [
-                    {
-                        id: "APT-003",
-                        customerName: "Mike Brown",
-                        vehicle: "Ford F-150",
-                        service: "Brake Inspection",
-                        time: "10:00 AM",
-                        status: "Scheduled",
-                        duration: "60 min"
-                    }
-                ],
-                'Wednesday': [],
-                'Thursday': [
-                    {
-                        id: "APT-004",
-                        customerName: "Emily Davis",
-                        vehicle: "BMW X5",
-                        service: "Engine Diagnostic",
-                        time: "11:00 AM",
-                        status: "Scheduled",
-                        duration: "90 min"
-                    }
-                ],
-                'Friday': [],
-                'Saturday': [],
-                'Sunday': []
-            };
-            
-            setSchedule(mockSchedule);
+            // Get employee ID from user data
+            const employeeId = userData.id || userData.userId;
+            if (!employeeId) {
+                alert('Employee ID not found. Please log in again.');
+                window.location.href = '/';
+                return;
+            }
+            setUserId(employeeId);
+
+            // Fetch schedule data from backend
+            fetchScheduleData(employeeId);
         } catch (error) {
             console.error('Error parsing user data:', error);
             localStorage.removeItem('user');
@@ -108,44 +82,172 @@ export default function EmployeeSchedule() {
         return () => clearInterval(intervalId);
     }, []);
 
-    const getTotalTime = (tasks: ScheduledTask[]) => {
-        return tasks.reduce((total, task) => {
-            const duration = parseInt(task.duration.split(' ')[0]);
-            return total + duration;
-        }, 0);
-    };
+    // Fetch schedule data from backend
+    const fetchScheduleData = async (employeeId: number) => {
+        try {
+            setIsLoading(true);
+            // Get assignments
+            const assignmentsData = await getEmployeeAssignments(employeeId);
+            const enrichedAssignments = await enrichAssignmentsWithDetails(assignmentsData);
+            
+            // Get time logs for each assignment to show start/end times
+            const scheduleData: { [key: string]: ScheduledTask[] } = {
+                'Monday': [],
+                'Tuesday': [],
+                'Wednesday': [],
+                'Thursday': [],
+                'Friday': [],
+                'Saturday': [],
+                'Sunday': []
+            };
 
-    const handleStartWork = (task: ScheduledTask) => {
-        if (task.status === 'Scheduled') {
-            const now = Date.now();
-            const updatedSchedule = { ...schedule };
-            for (const day in updatedSchedule) {
-                updatedSchedule[day] = updatedSchedule[day].map(t => 
-                    t.id === task.id 
-                        ? { ...t, status: 'In Progress', startTimestamp: now, endTimestamp: undefined } 
-                        : t
-                );
+            // Process each assignment
+            for (const assignment of enrichedAssignments) {
+                try {
+                    // Get time logs for this assignment
+                    let timeLogs: TimeLogResponse[] = [];
+                    let activeTimeLog: TimeLogResponse | null = null;
+                    
+                    if (assignment.assignmentId) {
+                        timeLogs = await getTimeLogsForAssignment(assignment.assignmentId);
+                        // Find active time log (started but not finished)
+                        activeTimeLog = timeLogs.find(log => log.startTime && !log.endTime) || null;
+                    }
+
+                    // Parse appointment date
+                    const appointmentDate = assignment.appointmentDate || assignment.assignedDate;
+                    if (!appointmentDate) continue;
+
+                    const date = new Date(appointmentDate);
+                    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+                    
+                    // Format time
+                    const appointmentTime = assignment.appointmentTime || '09:00 AM';
+                    const time = appointmentTime.includes('AM') || appointmentTime.includes('PM') 
+                        ? appointmentTime 
+                        : formatTime12Hour(appointmentTime);
+
+                    const task: ScheduledTask = {
+                        id: assignment.id,
+                        customerName: assignment.customerName,
+                        vehicle: assignment.vehicle,
+                        service: assignment.service,
+                        time: time,
+                        status: assignment.status === 'ASSIGNED' ? 'Scheduled' : 
+                                assignment.status === 'IN_PROGRESS' ? 'In Progress' :
+                                assignment.status === 'COMPLETED' ? 'Completed' : assignment.status,
+                        duration: assignment.estimatedDuration || 'N/A',
+                        startTimestamp: activeTimeLog?.startTime 
+                            ? new Date(activeTimeLog.startTime).getTime() 
+                            : undefined,
+                        endTimestamp: activeTimeLog?.endTime 
+                            ? new Date(activeTimeLog.endTime).getTime() 
+                            : undefined,
+                        assignmentId: assignment.assignmentId,
+                        appointmentId: assignment.appointmentId,
+                        timeLogId: activeTimeLog?.id
+                    };
+
+                    if (scheduleData[dayName]) {
+                        scheduleData[dayName].push(task);
+                    }
+                } catch (err) {
+                    console.error(`Error processing assignment ${assignment.id}:`, err);
+                }
             }
-            setSchedule(updatedSchedule);
-        } else {
-            alert('This appointment is already in progress or completed.');
+
+            setSchedule(scheduleData);
+        } catch (error) {
+            console.error('Error fetching schedule data:', error);
+            alert('Failed to load schedule. Please try again.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    const handleFinishWork = (task: ScheduledTask) => {
-        if (task.status === 'In Progress') {
-            const now = Date.now();
-            const updatedSchedule = { ...schedule };
-            for (const day in updatedSchedule) {
-                updatedSchedule[day] = updatedSchedule[day].map(t => 
-                    t.id === task.id 
-                        ? { ...t, status: 'Completed', endTimestamp: now } 
-                        : t
-                );
+    const formatTime12Hour = (time24: string): string => {
+        try {
+            const [hours, minutes] = time24.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const hour12 = hour % 12 || 12;
+            return `${hour12}:${minutes || '00'} ${ampm}`;
+        } catch {
+            return time24;
+        }
+    };
+
+    const getTotalTime = (tasks: ScheduledTask[]) => {
+        return tasks.reduce((total, task) => {
+            try {
+                const durationStr = task.duration.replace(/[^0-9]/g, '');
+                const duration = parseInt(durationStr) || 0;
+                return total + duration;
+            } catch {
+                return total;
             }
-            setSchedule(updatedSchedule);
-        } else {
+        }, 0);
+    };
+
+    const handleStartWork = async (task: ScheduledTask) => {
+        if (!task.assignmentId) {
+            alert('Assignment ID not found.');
+            return;
+        }
+
+        if (task.status !== 'Scheduled' && task.status !== 'ASSIGNED') {
+            alert('This appointment is already in progress or completed.');
+            return;
+        }
+
+        try {
+            // Start time log
+            const timeLog = await startTimeLog(task.assignmentId, `Started work on ${task.service}`);
+            
+            // Update assignment status to IN_PROGRESS
+            await updateAssignmentStatus(task.assignmentId, 'IN_PROGRESS');
+            
+            // Refresh schedule data
+            if (userId) {
+                await fetchScheduleData(userId);
+            }
+            
+            alert(`Started work on: ${task.service}`);
+        } catch (error) {
+            console.error('Error starting work:', error);
+            alert('Failed to start work. Please try again.');
+        }
+    };
+
+    const handleFinishWork = async (task: ScheduledTask) => {
+        if (!task.timeLogId) {
+            alert('No active time log found.');
+            return;
+        }
+
+        if (task.status !== 'In Progress' && task.status !== 'IN_PROGRESS') {
             alert('You can only finish tasks that are In Progress.');
+            return;
+        }
+
+        try {
+            // Stop time log
+            await stopTimeLog(task.timeLogId);
+            
+            // Update assignment status to COMPLETED
+            if (task.assignmentId) {
+                await updateAssignmentStatus(task.assignmentId, 'COMPLETED');
+            }
+            
+            // Refresh schedule data
+            if (userId) {
+                await fetchScheduleData(userId);
+            }
+            
+            alert(`Finished work on: ${task.service}`);
+        } catch (error) {
+            console.error('Error finishing work:', error);
+            alert('Failed to finish work. Please try again.');
         }
     };
 
@@ -222,19 +324,25 @@ export default function EmployeeSchedule() {
 
                 {/* Weekly Schedule */}
                 <div className="space-y-6">
-                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
-                        <div key={day} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-                            <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 px-6 py-4 border-b border-gray-800">
-                                <div className="flex items-center justify-between">
-                                    <h2 className="text-xl font-bold text-white">{day}</h2>
-                                    <span className="px-3 py-1 bg-gray-800 text-gray-300 rounded-full text-sm font-semibold">
-                                        {schedule[day]?.length || 0} appointments
-                                    </span>
+                    {isLoading ? (
+                        <div className="text-center py-12">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto"></div>
+                            <p className="text-gray-400 mt-4">Loading schedule...</p>
+                        </div>
+                    ) : (
+                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+                            <div key={day} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                                <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 px-6 py-4 border-b border-gray-800">
+                                    <div className="flex items-center justify-between">
+                                        <h2 className="text-xl font-bold text-white">{day}</h2>
+                                        <span className="px-3 py-1 bg-gray-800 text-gray-300 rounded-full text-sm font-semibold">
+                                            {schedule[day]?.length || 0} appointments
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="p-6">
-                                {!schedule[day] || schedule[day].length === 0 ? (
+                                <div className="p-6">
+                                    {!schedule[day] || schedule[day].length === 0 ? (
                                     <div className="text-center py-8 text-gray-400">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mx-auto mb-2 opacity-50">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-16 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-16 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
@@ -277,25 +385,49 @@ export default function EmployeeSchedule() {
                                                             <p className="text-gray-400 text-sm">Duration</p>
                                                             <p className="text-white font-semibold">{task.duration}</p>
                                                         </div>
-                                                        <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-500/20 text-blue-400">
-                                                            {task.status}
-                                                        </span>
+                                                        {(task.status === 'In Progress' || task.status === 'IN_PROGRESS') && (
+                                                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-500/20 text-yellow-400">
+                                                                In Progress
+                                                            </span>
+                                                        )}
+                                                        {(task.status === 'Scheduled' || task.status === 'ASSIGNED') && (
+                                                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-500/20 text-blue-400">
+                                                                Scheduled
+                                                            </span>
+                                                        )}
+                                                        {task.status === 'COMPLETED' && (
+                                                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-500/20 text-green-400">
+                                                                Completed
+                                                            </span>
+                                                        )}
+                                                        {task.status === 'PAUSED' && (
+                                                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-500/20 text-orange-400">
+                                                                Paused
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="mt-4 flex gap-2">
-                                                    {task.status === 'In Progress' ? (
+                                                    {(task.status === 'In Progress' || task.status === 'IN_PROGRESS') && task.timeLogId ? (
                                                         <button 
                                                             onClick={() => handleFinishWork(task)}
                                                             className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-semibold rounded-lg transition text-sm"
                                                         >
                                                             Finish Work
                                                         </button>
-                                                    ) : (
+                                                    ) : (task.status === 'Scheduled' || task.status === 'ASSIGNED') ? (
                                                         <button 
                                                             onClick={() => handleStartWork(task)}
                                                             className="flex-1 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-lg transition text-sm"
                                                         >
                                                             Start Work
+                                                        </button>
+                                                    ) : (
+                                                        <button 
+                                                            disabled
+                                                            className="flex-1 px-4 py-2 bg-gray-600 text-gray-400 font-semibold rounded-lg cursor-not-allowed text-sm"
+                                                        >
+                                                            {task.status === 'COMPLETED' ? 'Completed' : task.status}
                                                         </button>
                                                     )}
                                                     <button 
@@ -311,7 +443,8 @@ export default function EmployeeSchedule() {
                                 )}
                             </div>
                         </div>
-                    ))}
+                    ))
+                    )}
                 </div>
             </div>
 

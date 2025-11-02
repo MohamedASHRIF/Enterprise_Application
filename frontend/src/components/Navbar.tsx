@@ -107,6 +107,10 @@ export default function Navbar() {
         if (path === '/Dashboard') {
             return pathname === '/Dashboard';
         }
+        if (path === '/Dashboard/employee') {
+            return pathname === '/Dashboard/employee' || pathname?.startsWith('/Dashboard/employee');
+        }
+    
         return pathname?.startsWith(path);
     };
 
@@ -130,7 +134,12 @@ export default function Navbar() {
 
                     {/* Navigation Links */}
                     <div className="hidden md:flex items-center space-x-8">
-                        <a href="/Dashboard" className={getNavLinkClass('/Dashboard')}>Dashboard</a>
+                        {/* Role-based Dashboard link */}
+                        {user?.role?.toUpperCase() === 'EMPLOYEE' ? (
+                            <a href="/Dashboard/employee" className={getNavLinkClass('/Dashboard/employee')}>Dashboard</a>
+                        )  : (
+                            <a href="/Dashboard" className={getNavLinkClass('/Dashboard')}>Dashboard</a>
+                        )}
                         
                         {/* Admin-specific links */}
                         {user?.role?.toUpperCase() === 'ADMIN' && (
