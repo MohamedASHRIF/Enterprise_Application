@@ -22,6 +22,7 @@ import com.enterprise.authentication.filter.JwtAuthenticationFilter;
 public class SecurityConfig {
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+    
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
