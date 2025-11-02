@@ -8,7 +8,9 @@ import {
     stopTimeLog,
     getTimeLogsForAssignment,
     updateAssignmentStatus,
-    type TimeLogResponse
+    getEmployeeWorkHours,
+    type TimeLogResponse,
+    type WorkHoursResponse
 } from "@/app/api/employeeApi";
 
 interface ScheduledTask {
@@ -35,6 +37,8 @@ export default function EmployeeSchedule() {
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [tick, setTick] = useState(0); // updates every second to drive live timers
     const [isLoading, setIsLoading] = useState(true);
+    const [weeklyHoursStr, setWeeklyHoursStr] = useState('0 hr 0 min 0 sec');
+    const [todayHoursStr, setTodayHoursStr] = useState('0 hr 0 min 0 sec');
     const [focusedDay, setFocusedDay] = useState<string | null>(null);
     const [showEmptyDays, setShowEmptyDays] = useState<boolean>(true);
 
@@ -203,6 +207,46 @@ export default function EmployeeSchedule() {
             }
 
             setSchedule(scheduleData);
+            // Fetch employee work-hours aggregates and compute weekly/today totals
+            try {
+                const workHours = await getEmployeeWorkHours(employeeId);
+                const now = new Date();
+                const dayOfWeek = now.getDay(); // 0 = Sunday
+                const monday = new Date(now);
+                monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+                monday.setHours(0,0,0,0);
+                const sunday = new Date(monday);
+                sunday.setDate(monday.getDate() + 6);
+                sunday.setHours(23,59,59,999);
+                const mondayISO = monday.toISOString().split('T')[0];
+                const sundayISO = sunday.toISOString().split('T')[0];
+
+                const weeklySeconds = workHours
+                    .filter((h: WorkHoursResponse) => h && h.workDate && h.workDate >= mondayISO && h.workDate <= sundayISO)
+                    .reduce((total: number, h: WorkHoursResponse) => total + (h.totalSeconds || 0), 0);
+
+                const todayISO = now.toISOString().split('T')[0];
+                const todaySeconds = workHours
+                    .filter((h: WorkHoursResponse) => h && h.workDate === todayISO)
+                    .reduce((total: number, h: WorkHoursResponse) => total + (h.totalSeconds || 0), 0);
+
+                const formatSecondsToHumanVerbose = (secs: number) => {
+                    const s = Math.max(0, Math.floor(secs));
+                    const h = Math.floor(s / 3600);
+                    const m = Math.floor((s % 3600) / 60);
+                    const sec = s % 60;
+                    const parts: string[] = [];
+                    if (h > 0) parts.push(`${h} hr` + (h > 1 ? '' : ''));
+                    if (m > 0) parts.push(`${m} min`);
+                    parts.push(`${sec} sec`);
+                    return parts.join(' ');
+                };
+
+                setWeeklyHoursStr(formatSecondsToHumanVerbose(weeklySeconds));
+                setTodayHoursStr(formatSecondsToHumanVerbose(todaySeconds));
+            } catch (e) {
+                console.warn('Failed to fetch work hours for schedule page', e);
+            }
             // default focus: start the week view from today (preserve weekday flow)
             try {
                 const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
@@ -630,14 +674,14 @@ export default function EmployeeSchedule() {
                         </p>
                     </div>
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-                        <p className="text-gray-400 text-sm">Total Time</p>
+                        <p className="text-gray-400 text-sm">Weekly Hours</p>
                         <p className="text-3xl font-bold text-green-500 mt-2">
-                            {getTotalTime(Object.values(schedule).flat())} hrs
+                            {weeklyHoursStr}
                         </p>
                     </div>
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-                        <p className="text-gray-400 text-sm">Available Hours</p>
-                        <p className="text-3xl font-bold text-purple-500 mt-2">40h</p>
+                        <p className="text-gray-400 text-sm">Today</p>
+                        <p className="text-3xl font-bold text-purple-500 mt-2">{todayHoursStr}</p>
                     </div>
                 </div>
 
