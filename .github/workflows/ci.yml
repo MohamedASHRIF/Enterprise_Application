@@ -62,16 +62,56 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # prefer use of a fine-grained PAT stored in GHCR_TOKEN secret
+          password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Build and push images
+      # Build and push each service image individually using proper 'tags' input
+      - name: Build & push notification image
         uses: docker/build-push-action@v4
         with:
+          context: Backend/notification-system
+          file: Backend/notification-system/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          images: |
+          tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/notification:${{ github.sha }}
+
+      - name: Build & push auth image
+        uses: docker/build-push-action@v4
+        with:
+          context: auth/authentication
+          file: auth/authentication/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/auth:${{ github.sha }}
+
+      - name: Build & push employee image
+        uses: docker/build-push-action@v4
+        with:
+          context: employee-service
+          file: employee-service/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/employee:${{ github.sha }}
+
+      - name: Build & push chatbot image
+        uses: docker/build-push-action@v4
+        with:
+          context: chatbot-backend
+          file: chatbot-backend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/chatbot:${{ github.sha }}
+
+      - name: Build & push frontend image
+        uses: docker/build-push-action@v4
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/frontend:${{ github.sha }}
