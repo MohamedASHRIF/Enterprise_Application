@@ -1,3 +1,4 @@
+com\enterprise\employee_service\service\CustomerServiceClient$1.class
 com\enterprise\employee_service\domain\Assignment$AssignmentBuilder.class
 com\enterprise\employee_service\domain\TimeLog$TimeLogBuilder.class
 com\enterprise\employee_service\web\AssignmentController.class
@@ -12,17 +13,22 @@ com\enterprise\employee_service\web\TimeLogController.class
 com\enterprise\employee_service\web\ScheduleController.class
 com\enterprise\employee_service\repository\ScheduleRepository.class
 com\enterprise\employee_service\web\dto\Role.class
+com\enterprise\employee_service\service\CustomerServiceClient.class
 com\enterprise\employee_service\service\EmployeeAuthClient.class
 com\enterprise\employee_service\web\mapper\DtoMapper.class
 com\enterprise\employee_service\web\dto\EmployeeDto.class
 com\enterprise\employee_service\domain\TimeLog.class
 com\enterprise\employee_service\web\dto\ScheduleResponseDto.class
 com\enterprise\employee_service\service\AssignmentService.class
+com\enterprise\employee_service\web\CustomerAppointmentController.class
+com\enterprise\employee_service\service\CustomerServiceClient$2.class
+com\enterprise\employee_service\service\EmployeeAuthClient$1.class
 com\enterprise\employee_service\web\EmployeeController.class
 com\enterprise\employee_service\web\dto\AssignmentResponseDto.class
 com\enterprise\employee_service\config\CorsConfig.class
 com\enterprise\employee_service\repository\TimeLogRepository.class
 com\enterprise\employee_service\service\TimeLogService.class
+com\enterprise\employee_service\service\EmployeeAuthClient$2.class
 com\enterprise\employee_service\repository\AssignmentRepository.class
 com\enterprise\employee_service\domain\Schedule$ScheduleBuilder.class
 com\enterprise\employee_service\web\dto\ResponseDto.class
@@ -31,4 +37,5 @@ com\enterprise\employee_service\web\dto\TimeLogResponseDto.class
 com\enterprise\employee_service\service\ScheduleService.class
 com\enterprise\employee_service\domain\Schedule.class
 com\enterprise\employee_service\EmployeeServiceApplication.class
+com\enterprise\employee_service\service\CustomerServiceClient$3.class
 com\enterprise\employee_service\domain\AssignmentStatus.class
