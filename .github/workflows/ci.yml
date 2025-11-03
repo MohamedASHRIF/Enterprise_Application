@@ -87,13 +87,18 @@ jobs:
         shell: bash
 
       - name: GHCR token scopes check (debug)
-        if: ${{ secrets.GHCR_TOKEN != '' }}
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
+          if [ -z "$GHCR_TOKEN" ]; then
+            echo "GHCR_TOKEN not set; skipping token scope check"
+            exit 0
+          fi
           echo 'Checking GHCR token scopes and owner (token masked)'
           echo '--- token scopes header ---'
-          curl -sI -H "Authorization: Bearer ${{ secrets.GHCR_TOKEN }}" https://api.github.com | egrep -i 'x-oauth-scopes|x-accepted-oauth-scopes' || true
+          curl -sI -H "Authorization: Bearer $GHCR_TOKEN" https://api.github.com | egrep -i 'x-oauth-scopes|x-accepted-oauth-scopes' || true
           echo '--- token owner login ---'
-          curl -s -H "Authorization: Bearer ${{ secrets.GHCR_TOKEN }}" https://api.github.com/user | grep '"login"' || true
+          curl -s -H "Authorization: Bearer $GHCR_TOKEN" https://api.github.com/user | grep '"login"' || true
         shell: bash
 
       # (removed debug step that set REGISTRY_USER) - login now uses secrets.GHCR_USER || github.actor directly
