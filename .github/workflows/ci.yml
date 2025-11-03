@@ -9,6 +9,11 @@ on:
   # allow manual runs from the Actions UI
   workflow_dispatch: {}
 
+# Allow the workflow to push packages when using the built-in GITHUB_TOKEN
+permissions:
+  contents: read
+  packages: write
+
 env:
   REGISTRY: ghcr.io
   # repository_owner can contain uppercase letters; compute lowercase at runtime below
@@ -78,7 +83,8 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           # prefer use of a fine-grained PAT stored in GHCR_TOKEN secret
-          password: ${{ secrets.GHCR_TOKEN }}
+          # fallback to the workflow token if a PAT isn't provided
+          password: ${{ secrets.GHCR_TOKEN || github.token }}
 
       # Build and push each service image individually using proper 'tags' input
       - name: Build & push notification image
