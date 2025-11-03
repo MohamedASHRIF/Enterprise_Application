@@ -68,13 +68,27 @@ public class CustomerServiceClient {
 
     public Map<String, Object> getCustomerById(Long customerId) {
         try {
+            // Prefer public customer endpoint to avoid nested appointment graphs
+            String publicUrl = customerServiceUrl + "/public/customers/" + customerId;
+            try {
+                ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                        publicUrl, HttpMethod.GET, null,
+                        new ParameterizedTypeReference<Map<String, Object>>() {}
+                );
+                Map<String, Object> body = response.getBody();
+                log.info("Fetched customer from Customer Service (public) for id={} -> {}", customerId, body);
+                return body;
+            } catch (RestClientException e) {
+                log.debug("Public customer endpoint unavailable for id={} (will try legacy): {}", customerId, e.toString());
+            }
+
             String url = customerServiceUrl + "/customers/" + customerId;
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                     url, HttpMethod.GET, null,
                     new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             Map<String, Object> body = response.getBody();
-            log.info("Fetched customer from Customer Service for id={} -> {}", customerId, body);
+            log.info("Fetched customer from Customer Service (legacy) for id={} -> {}", customerId, body);
             return body;
         } catch (RestClientResponseException e) {
             log.warn("Customer service returned error for customer id={} status={} body={}", customerId, e.getRawStatusCode(), e.getResponseBodyAsString());
