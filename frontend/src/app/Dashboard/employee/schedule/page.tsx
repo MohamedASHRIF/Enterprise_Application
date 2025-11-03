@@ -41,6 +41,15 @@ export default function EmployeeSchedule() {
     const [todayHoursStr, setTodayHoursStr] = useState('0 hr 0 min 0 sec');
     const [focusedDay, setFocusedDay] = useState<string | null>(null);
     const [showEmptyDays, setShowEmptyDays] = useState<boolean>(true);
+    // weekStart represents the Monday (00:00) of the currently displayed week
+    const [weekStart, setWeekStart] = useState<Date>(() => {
+        const now = new Date();
+        const dayOfWeek = now.getDay(); // 0 = Sunday
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+        monday.setHours(0,0,0,0);
+        return monday;
+    });
 
     useEffect(() => {
         // Check if user is authenticated and has EMPLOYEE role
@@ -73,8 +82,8 @@ export default function EmployeeSchedule() {
             }
             setUserId(employeeId);
 
-            // Fetch schedule data from backend
-            fetchScheduleData(employeeId);
+            // Fetch schedule data from backend for the current weekStart
+            fetchScheduleData(employeeId, weekStart);
         } catch (error) {
             console.error('Error parsing user data:', error);
             localStorage.removeItem('user');
@@ -89,8 +98,8 @@ export default function EmployeeSchedule() {
         return () => clearInterval(intervalId);
     }, []);
 
-    // Fetch schedule data from backend
-    const fetchScheduleData = async (employeeId: number) => {
+    // Fetch schedule data from backend (optionally for a specific weekStart)
+    const fetchScheduleData = async (employeeId: number, weekStartDate?: Date) => {
         try {
             setIsLoading(true);
             // Get assignments
@@ -107,6 +116,15 @@ export default function EmployeeSchedule() {
                 'Saturday': [],
                 'Sunday': []
             };
+
+            // compute week range based on provided weekStartDate or current state
+            const weekBase = weekStartDate ? new Date(weekStartDate) : new Date(weekStart);
+            weekBase.setHours(0,0,0,0);
+            const mondayISO = weekBase.toISOString().split('T')[0];
+            const sunday = new Date(weekBase);
+            sunday.setDate(weekBase.getDate() + 6);
+            sunday.setHours(23,59,59,999);
+            const sundayISO = sunday.toISOString().split('T')[0];
 
             // Process each assignment
             for (const assignment of enrichedAssignments) {
@@ -127,11 +145,12 @@ export default function EmployeeSchedule() {
                         activeTimeLog = timeLogs.find(log => log.startTime && !log.endTime) || null;
                     }
 
-                    // Parse appointment date
+                    // Parse appointment date and only include if within selected week
                     const appointmentDate = assignment.appointmentDate || assignment.assignedDate;
                     if (!appointmentDate) continue;
-
                     const date = new Date(appointmentDate);
+                    const isoDate = date.toISOString().split('T')[0];
+                    if (isoDate < mondayISO || isoDate > sundayISO) continue;
                     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
                     
                     // Format time
@@ -599,23 +618,46 @@ export default function EmployeeSchedule() {
         } as ScheduledTask;
     };
 
-    // helper: build render order based on focusedDay and hide/show empty days
-    const weekOrder = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-    const renderDays = (() => {
-        const base = focusedDay ? [focusedDay, ...weekOrder.filter(d => d !== focusedDay)] : weekOrder.slice();
-        if (!showEmptyDays) {
-            return base.filter(d => schedule[d] && schedule[d].length > 0);
+    // helper: build the 7 days for the current weekStart (with iso date)
+    const weekDays = (() => {
+        const days: { name: string; iso: string; date: Date }[] = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(weekStart);
+            d.setDate(weekStart.getDate() + i);
+            d.setHours(0,0,0,0);
+            const name = d.toLocaleDateString('en-US', { weekday: 'long' });
+            const iso = d.toISOString().split('T')[0];
+            days.push({ name, iso, date: d });
         }
-        return base;
+        if (!showEmptyDays) return days.filter(d => schedule[d.name] && schedule[d.name].length > 0);
+        return days;
     })();
+
+    // human-friendly week range label
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    const weekRangeLabel = `${weekStart.toISOString().split('T')[0]} → ${weekEnd.toISOString().split('T')[0]}`;
 
     const jumpToToday = () => {
         try {
-            const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-            setFocusedDay(today);
+            const now = new Date();
+            const dayOfWeek = now.getDay();
+            const monday = new Date(now);
+            monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+            monday.setHours(0,0,0,0);
+            setWeekStart(monday);
+            if (userId) fetchScheduleData(userId, monday);
         } catch (e) {
             // ignore
         }
+    };
+
+    const changeWeek = (deltaDays: number) => {
+        const newStart = new Date(weekStart);
+        newStart.setDate(weekStart.getDate() + deltaDays);
+        newStart.setHours(0,0,0,0);
+        setWeekStart(newStart);
+        if (userId) fetchScheduleData(userId, newStart);
     };
 
     if (!userRole) {
@@ -642,6 +684,18 @@ export default function EmployeeSchedule() {
                     <p className="text-gray-400">View your weekly schedule and appointments</p>
                     <div className="mt-4 flex items-center gap-3">
                         <button
+                            onClick={() => changeWeek(-7)}
+                            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded-md text-sm border border-gray-700"
+                        >
+                            ← Prev Week
+                        </button>
+                        <button
+                            onClick={() => changeWeek(7)}
+                            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded-md text-sm border border-gray-700"
+                        >
+                            Next Week →
+                        </button>
+                        <button
                             onClick={jumpToToday}
                             className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded-md text-sm border border-gray-700"
                         >
@@ -653,9 +707,7 @@ export default function EmployeeSchedule() {
                         >
                             {showEmptyDays ? 'Hide Empty Days' : 'Show Empty Days'}
                         </button>
-                        {focusedDay && (
-                            <div className="ml-3 text-sm text-gray-300">Showing: <span className="font-semibold text-white">{focusedDay}</span></div>
-                        )}
+                        <div className="ml-3 text-sm text-gray-300">Week: <span className="font-semibold text-white">{weekRangeLabel}</span></div>
                     </div>
                 </div>
 
@@ -692,34 +744,37 @@ export default function EmployeeSchedule() {
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto"></div>
                             <p className="text-gray-400 mt-4">Loading schedule...</p>
                         </div>
-                    ) : renderDays.length === 0 ? (
+                    ) : weekDays.length === 0 ? (
                         <div className="text-center py-12 text-gray-400">
                             <p className="text-lg">No appointments scheduled for this week.</p>
                             <p className="text-sm mt-2">Try toggling "Show Empty Days" or check another week.</p>
                         </div>
                     ) : (
-                        renderDays.map((day) => (
-                        <div key={day} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                        weekDays.map((wd) => (
+                        <div key={wd.iso} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
                             <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 px-6 py-4 border-b border-gray-800">
                                 <div className="flex items-center justify-between">
-                                    <h2 className="text-xl font-bold text-white">{day}</h2>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-white">{wd.name}</h2>
+                                        <div className="text-xs text-gray-400">{wd.iso}</div>
+                                    </div>
                                     <span className="px-3 py-1 bg-gray-800 text-gray-300 rounded-full text-sm font-semibold">
-                                        {schedule[day]?.length || 0} appointments
+                                        {schedule[wd.name]?.length || 0} appointments
                                     </span>
                                 </div>
                             </div>
 
                             <div className="p-6">
-                                {!schedule[day] || schedule[day].length === 0 ? (
+                                {!schedule[wd.name] || schedule[wd.name].length === 0 ? (
                                     <div className="text-center py-8 text-gray-400">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mx-auto mb-2 opacity-50">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-16 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-16 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                                         </svg>
-                                        <p>No appointments scheduled for {day}</p>
+                                        <p>No appointments scheduled for {wd.name} ({wd.iso})</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        {schedule[day].map((task) => (
+                                        {schedule[wd.name].map((task) => (
                                             <div key={task.id} className="bg-gray-800 rounded-lg p-5 border border-gray-700 hover:border-cyan-500/50 transition">
                                                 <div className="flex items-start justify-between">
                                                     <div className="flex-1">
