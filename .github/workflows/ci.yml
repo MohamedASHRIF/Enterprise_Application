@@ -11,7 +11,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAMESPACE: ${{ github.repository_owner }}
+  # repository_owner can contain uppercase letters; container registries require lowercase
+  IMAGE_NAMESPACE: ${{ toLower(github.repository_owner) }}
 
 jobs:
   build:
