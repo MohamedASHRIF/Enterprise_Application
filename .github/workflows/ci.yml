@@ -155,6 +155,26 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/chatbot:${{ github.sha }}
 
+      - name: Build & push admin image
+        uses: docker/build-push-action@v4
+        with:
+          context: admin
+          file: admin/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/admin:${{ github.sha }}
+
+      - name: Build & push customer_service image
+        uses: docker/build-push-action@v4
+        with:
+          context: Customer_Service/customer_service
+          file: Customer_Service/customer_service/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/customer_service:${{ github.sha }}
+
       - name: Build & push frontend image
         uses: docker/build-push-action@v4
         with:
@@ -164,3 +184,63 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/frontend:${{ github.sha }}
+
+  deploy-staging:
+    name: Deploy to staging
+    runs-on: ubuntu-latest
+    needs: build
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute lowercase IMAGE_NAMESPACE for deploy
+        run: |
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          LOWER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAMESPACE=$LOWER" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v1
+
+      - name: Configure kubeconfig
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          if [ -z "$KUBE_CONFIG" ]; then
+            echo "KUBE_CONFIG secret not set; aborting deploy" >&2
+            exit 1
+          fi
+          mkdir -p $HOME/.kube
+          echo "$KUBE_CONFIG" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+        shell: bash
+
+      - name: Helm upgrade/install (staging)
+        run: |
+          helm upgrade --install enterprise k8s/helm/enterprise-chart \
+            -n staging --create-namespace \
+            -f k8s/helm/values-staging.yaml \
+            --set global.imageNamespace=${{ env.IMAGE_NAMESPACE }} \
+            --set global.imageTag=${{ env.IMAGE_TAG }}
+        shell: bash
+
+      - name: Wait for deployments to be ready
+        run: |
+          set -e
+          DEPLOYMENTS=(notification auth employee chatbot admin customer_service frontend)
+          for d in "${DEPLOYMENTS[@]}"; do
+            echo "Waiting for deployment $d"
+            kubectl rollout status deployment/$d -n staging --timeout=120s || (
+              echo "Deployment $d failed to become ready" >&2; kubectl get pods -n staging -o wide; exit 1)
+          done
+        shell: bash
+
+      - name: List pods (staging)
+        run: |
+          kubectl get pods -n staging -o wide
+        shell: bash
