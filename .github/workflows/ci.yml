@@ -87,7 +87,7 @@ jobs:
         shell: bash
 
       - name: GHCR token scopes check (debug)
-        if: secrets.GHCR_TOKEN != ''
+        if: ${{ secrets.GHCR_TOKEN != '' }}
         run: |
           echo 'Checking GHCR token scopes and owner (token masked)'
           echo '--- token scopes header ---'
