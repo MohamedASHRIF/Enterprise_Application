@@ -86,11 +86,25 @@ jobs:
           fi
         shell: bash
 
+      - name: GHCR token scopes check (debug)
+        if: secrets.GHCR_TOKEN != ''
+        run: |
+          echo 'Checking GHCR token scopes and owner (token masked)'
+          echo '--- token scopes header ---'
+          curl -sI -H "Authorization: Bearer ${{ secrets.GHCR_TOKEN }}" https://api.github.com | egrep -i 'x-oauth-scopes|x-accepted-oauth-scopes' || true
+          echo '--- token owner login ---'
+          curl -s -H "Authorization: Bearer ${{ secrets.GHCR_TOKEN }}" https://api.github.com/user | grep '"login"' || true
+        shell: bash
+
+      # (removed debug step that set REGISTRY_USER) - login now uses secrets.GHCR_USER || github.actor directly
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          # username must match the account that owns the token (or a user with write access)
+          # prefer an explicit GHCR_USER secret (the token owner) or fallback to the actor
+          username: ${{ secrets.GHCR_USER || github.actor }}
           # prefer use of a fine-grained PAT stored in GHCR_TOKEN secret
           # fallback to the workflow token if a PAT isn't provided
           password: ${{ secrets.GHCR_TOKEN || github.token }}
