@@ -1,0 +1,22 @@
+[
+  {
+    "keywords": ["login", "auth", "authentication", "jwt", "token"],
+    "reply": "To log in, use the Authentication service with email and password. Tokens are JWTs returned on success and should be sent in the Authorization header as 'Bearer <token>'."
+  },
+  {
+    "keywords": ["notification", "sms", "email", "twilio", "rabbitmq", "rabbit"],
+    "reply": "Notifications are handled by the Notification service. Emails and SMS can be sent via configured providers (Twilio for SMS). The system publishes events to RabbitMQ for asynchronous delivery."
+  },
+  {
+    "keywords": ["appointment", "schedule", "booking"],
+    "reply": "Appointments and scheduling are managed by the Customer Service. Check the appointments endpoints to create, update, and view schedules for customers and employees."
+  },
+  {
+    "keywords": ["employee", "assign", "assignment", "time log"],
+    "reply": "Employee assignments and time logs are stored by the Employee service. Use the employee endpoints to query assignments, schedules, and time logs."
+  },
+  {
+    "keywords": ["service", "vehicle", "modification", "repair"],
+    "reply": "Service and vehicle records are available via the Customer Service APIs. You can query services, vehicle histories, and modifications from the corresponding endpoints."
+  }
+]
