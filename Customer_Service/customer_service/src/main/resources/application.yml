@@ -1,9 +1,15 @@
 spring:
   datasource:
-    url: jdbc:postgresql://dpg-d3v6b42li9vc73cj6nbg-a.singapore-postgres.render.com:5432/customer_service_pmj0
-    username: customer_service_pmj0_user
-    password: FZLlJkTkMzcGh7HZMfZhiAL9Wg13Ikyx
+    url: jdbc:postgresql://ep-weathered-paper-a1e2pqli-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require
+    username: neondb_owner
+    password: npg_7qejET0MJmlF
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
 
   jpa:
     hibernate:
@@ -12,3 +18,8 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:very_secure_default_change_me}
+
