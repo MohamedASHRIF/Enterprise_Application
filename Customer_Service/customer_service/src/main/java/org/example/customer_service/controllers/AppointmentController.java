@@ -1,13 +1,9 @@
 package org.example.customer_service.controllers;
 
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.example.customer_service.entities.Appointment;
 import org.example.customer_service.models.AppointmentStatus;
 import org.example.customer_service.services.AppointmentService;
-import org.example.customer_service.services.AuthClientService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,57 +15,24 @@ public class AppointmentController {
 
     private final AppointmentService appointmentService;
 
-    @Autowired
-    private AuthClientService authClientService;
-
-    private Long fetchCustomerIdFromAuth(String email) {
-        return authClientService.getCustomerIdByEmail(email);
-    }
-
-    private Long getCustomerId(HttpServletRequest req) {
-        Object id = req.getAttribute("customerId");
-        return id == null ? null : (Long) id;
-    }
-
-    private String getEmail(HttpServletRequest req) {
-        Object email = req.getAttribute("email");
-        return email == null ? null : email.toString();
-    }
-
     @PostMapping("/book")
-    public ResponseEntity<?> book(@RequestBody Appointment appointment, HttpServletRequest req) {
-        String email = getEmail(req);
-        if (email == null)
-            return ResponseEntity.status(401).body("Unauthorized: Missing or invalid token");
-
-        // TODO: call Auth service to get customerId using email
-        Long customerId = fetchCustomerIdFromAuth(email);
-        appointment.setCustomerId(customerId);
-
-        Appointment saved = appointmentService.bookAppointment(appointment);
-        return ResponseEntity.ok(saved);
+    public Appointment bookAppointment(@RequestBody Appointment appointment) {
+        return appointmentService.bookAppointment(appointment);
     }
 
-    @GetMapping("/my")
-    public ResponseEntity<?> myAppointments(HttpServletRequest req) {
-        Long customerId = getCustomerId(req);
-        if (customerId == null)
-            return ResponseEntity.status(401).body("Unauthorized: Invalid or missing token");
-
-        List<Appointment> list = appointmentService.getAppointmentsByCustomer(customerId);
-        return ResponseEntity.ok(list);
+    @GetMapping("/customer/{customerId}")
+    public List<Appointment> getAppointmentsByCustomer(@PathVariable Long customerId) {
+        return appointmentService.getAppointmentsByCustomer(customerId);
     }
 
     @PutMapping("/{id}/status")
     public Appointment updateStatus(@PathVariable Long id, @RequestParam AppointmentStatus status) {
         return appointmentService.updateAppointmentStatus(id, status);
     }
-
     @GetMapping("/count")
     public Long getAppointmentCountByStatus(@RequestParam AppointmentStatus status) {
         return appointmentService.getAppointmentCountByStatus(status);
     }
-
     @GetMapping("/{id}")
     public Appointment getAppointmentById(@PathVariable Long id) {
         return appointmentService.getAppointmentById(id)
@@ -79,6 +42,10 @@ public class AppointmentController {
     @DeleteMapping("/{id}")
     public String deleteAppointment(@PathVariable Long id) {
         boolean deleted = appointmentService.deleteAppointment(id);
-        return deleted ? "Appointment deleted successfully" : "Appointment not found";
+        if (deleted) {
+            return "Appointment deleted successfully with ID: " + id;
+        } else {
+            return "Appointment not found with ID: " + id;
+        }
     }
 }

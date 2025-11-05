@@ -1,6 +1,0 @@
-target
-.mvn
-.git
-**/target
-*.log
-*.tmp

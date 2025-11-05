@@ -22,7 +22,6 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
-security:
-  jwt:
-    secret: ${JWT_SECRET:very_secure_default_change_me}
-
+  security:
+    jwt:
+      secret: ${JWT_SECRET:very_secure_default_change_me}

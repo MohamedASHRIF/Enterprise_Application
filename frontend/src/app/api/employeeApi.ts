@@ -6,7 +6,7 @@ import customerApi from "./api"; // For customer service calls
 
 // Create a separate axios instance for employee service
 const employeeApi = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_EMPLOYEE_BASE_URL || 'http://localhost:8083/api',
+    baseURL: 'http://localhost:8070/api',
     headers: {
         "Content-Type": "application/json"
     }

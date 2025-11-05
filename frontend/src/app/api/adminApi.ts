@@ -1,8 +1,7 @@
 import axios from "axios";
 
-// Admin service is mapped to host port 8085 in docker-compose.yml
 const adminApi = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_ADMIN_BASE_URL || "http://localhost:8085/api",
+  baseURL: "http://localhost:8081/api",
   headers: { "Content-Type": "application/json" },
 });
 
