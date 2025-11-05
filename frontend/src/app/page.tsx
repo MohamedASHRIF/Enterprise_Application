@@ -134,7 +134,7 @@ export default function Home() {
               <input type="checkbox" className="w-4 h-4 text-indigo-700 border-gray-400 rounded focus:ring-2 focus:ring-indigo-500 cursor-pointer" />
               <span className="text-gray-700 font-medium group-hover:text-gray-900 transition-colors">Remember me</span>
             </label>
-            <a className="text-indigo-700 hover:text-indigo-900 font-semibold transition-colors hover:underline" href="#">Forgot Password?</a>
+            <a className="text-indigo-700 hover:text-indigo-900 font-semibold transition-colors hover:underline" href="/forgot-password">Forgot Password?</a>
           </div>
 
           <button 
