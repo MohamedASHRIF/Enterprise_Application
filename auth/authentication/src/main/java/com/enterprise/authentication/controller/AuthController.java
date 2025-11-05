@@ -5,6 +5,7 @@ import com.enterprise.authentication.service.AuthenticationService;
 import com.enterprise.authentication.service.UserService;
 import com.enterprise.authentication.util.JwtUtil;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -30,13 +31,15 @@ public class AuthController {
         // Return both token and user data
         return ResponseEntity.ok(Map.of(
                 "token", token,
+                "message", "Registration successful! Please check your email to verify your account.",
                 "user", Map.of(
                         "id", savedUser.getId(),
                         "firstName", savedUser.getFirstName(),
                         "lastName", savedUser.getLastName(),
                         "email", savedUser.getEmail(),
                         "phoneNumber", savedUser.getPhoneNumber() != null ? savedUser.getPhoneNumber() : "",
-                        "role", savedUser.getRole().toString()
+                        "role", savedUser.getRole().toString(),
+                        "emailVerified", Boolean.TRUE.equals(savedUser.getEmailVerified())
                 )
         ));
     }
@@ -45,6 +48,20 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody Map<String, String> loginRequest) {
         String email = loginRequest.get("email");
         String password = loginRequest.get("password");
+        
+        // First check if user exists and password is correct
+        Optional<User> userOpt = userService.findByEmail(email);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            // Check if email is verified before attempting authentication
+            if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+                return ResponseEntity.status(403).body(Map.of(
+                    "error", "Email not verified. Please check your email and verify your account.",
+                    "emailVerified", false
+                ));
+            }
+        }
+        
         return authenticationService.authenticate(email, password)
                 .map(user -> {
                     String token = jwtUtil.generateToken(user.getEmail());
@@ -57,7 +74,8 @@ public class AuthController {
                                     "lastName", user.getLastName(),
                                     "email", user.getEmail(),
                                     "phoneNumber", user.getPhoneNumber() != null ? user.getPhoneNumber() : "",
-                                    "role", user.getRole().toString()
+                                    "role", user.getRole().toString(),
+                                    "emailVerified", Boolean.TRUE.equals(user.getEmailVerified())
                             )
                     ));
                 })
@@ -71,6 +89,91 @@ public class AuthController {
                         "email", user.getEmail()
                 )))
                 .orElse(ResponseEntity.status(404).body(Map.of("error", "User not found")));
+    }
+    
+    @GetMapping("/verify-email")
+    public ResponseEntity<?> verifyEmail(@RequestParam String token) {
+        boolean verified = authenticationService.verifyEmail(token);
+        if (verified) {
+            return ResponseEntity.ok(Map.of(
+                "message", "Email verified successfully",
+                "success", true
+            ));
+        } else {
+            return ResponseEntity.status(400).body(Map.of(
+                "error", "Invalid or expired verification token",
+                "success", false
+            ));
+        }
+    }
+    
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        if (email == null || email.trim().isEmpty()) {
+            return ResponseEntity.status(400).body(Map.of("error", "Email is required"));
+        }
+        
+        boolean requested = authenticationService.requestPasswordReset(email);
+        if (requested) {
+            return ResponseEntity.ok(Map.of(
+                "message", "Password reset email sent successfully",
+                "success", true
+            ));
+        } else {
+            // For security, we don't reveal if the email exists or not
+            return ResponseEntity.ok(Map.of(
+                "message", "If the email exists, a password reset link will be sent",
+                "success", true
+            ));
+        }
+    }
+    
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> request) {
+        String token = request.get("token");
+        String newPassword = request.get("newPassword");
+        
+        if (token == null || token.trim().isEmpty()) {
+            return ResponseEntity.status(400).body(Map.of("error", "Token is required"));
+        }
+        if (newPassword == null || newPassword.length() < 6) {
+            return ResponseEntity.status(400).body(Map.of("error", "Password must be at least 6 characters"));
+        }
+        
+        boolean reset = authenticationService.resetPassword(token, newPassword);
+        if (reset) {
+            return ResponseEntity.ok(Map.of(
+                "message", "Password reset successfully",
+                "success", true
+            ));
+        } else {
+            return ResponseEntity.status(400).body(Map.of(
+                "error", "Invalid or expired reset token",
+                "success", false
+            ));
+        }
+    }
+    
+    @PostMapping("/resend-verification")
+    public ResponseEntity<?> resendVerification(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        if (email == null || email.trim().isEmpty()) {
+            return ResponseEntity.status(400).body(Map.of("error", "Email is required"));
+        }
+        
+        boolean resent = authenticationService.resendVerificationEmail(email);
+        if (resent) {
+            return ResponseEntity.ok(Map.of(
+                "message", "Verification email sent successfully",
+                "success", true
+            ));
+        } else {
+            return ResponseEntity.status(400).body(Map.of(
+                "error", "Email not found or already verified",
+                "success", false
+            ));
+        }
     }
 
 }
