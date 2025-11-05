@@ -8,6 +8,8 @@ import org.example.customer_service.services.AppointmentService;
 import org.example.customer_service.services.AuthClientService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +34,10 @@ public class AppointmentController {
     }
 
     private String getEmail(HttpServletRequest req) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() != null) {
+            return String.valueOf(auth.getPrincipal());
+        }
         Object email = req.getAttribute("email");
         return email == null ? null : email.toString();
     }
@@ -53,12 +59,20 @@ public class AppointmentController {
     @GetMapping("/my")
     public ResponseEntity<?> myAppointments(HttpServletRequest req) {
         Long customerId = getCustomerId(req);
-        if (customerId == null)
-            return ResponseEntity.status(401).body("Unauthorized: Invalid or missing token");
+        if (customerId == null) {
+            String email = getEmail(req);
+            if (email == null)
+                return ResponseEntity.status(401).body("Unauthorized: Invalid or missing token");
+
+            customerId = fetchCustomerIdFromAuth(email);
+            if (customerId == null)
+                return ResponseEntity.status(500).body("Unable to fetch customerId from auth service");
+        }
 
         List<Appointment> list = appointmentService.getAppointmentsByCustomer(customerId);
         return ResponseEntity.ok(list);
     }
+
 
     @PutMapping("/{id}/status")
     public Appointment updateStatus(@PathVariable Long id, @RequestParam AppointmentStatus status) {

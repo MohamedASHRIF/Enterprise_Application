@@ -26,3 +26,4 @@ security:
   jwt:
     secret: ${JWT_SECRET:very_secure_default_change_me}
 
+#worked
