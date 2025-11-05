@@ -27,6 +27,7 @@
   cursor: pointer;
   position: relative;
   transition: transform 160ms ease, box-shadow 160ms ease;
+  z-index: 10002; /* keep fab above the panel so it remains visible when open */
 }
 
 .fab:hover {
@@ -73,16 +74,37 @@
 }
 
 .panel {
-  width: 320px;
-  max-height: 420px;
+  /* position the panel above the fab, anchored to bottom-right */
+  position: absolute;
+  right: 0;
+  bottom: 72px; /* place above the fab (56px + some gap) */
+  width: 380px;
+  max-height: 520px;
   background: #0b1220;
   color: #e6eef8;
   border-radius: 12px;
-  margin-top: 12px;
   box-shadow: 0 12px 40px rgba(2,6,23,0.7);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  z-index: 10000;
+}
+
+/* animate when the panel first appears so it 'opens from' the fab */
+.panel {
+  transform-origin: bottom right;
+  animation: chatOpen 220ms cubic-bezier(.2,.9,.3,1);
+}
+
+@keyframes chatOpen {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .header {
