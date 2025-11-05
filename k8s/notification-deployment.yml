@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
       - name: notification
-        image: ghcr.io/YOUR_ORG/notification:latest
+        image: enterprise-notification:dev
+        imagePullPolicy: IfNotPresent
         ports:
           - containerPort: 8080
         env:
@@ -32,17 +33,17 @@ spec:
                 name: db-secret
                 key: POSTGRES_PASSWORD
         readinessProbe:
-          httpGet:
-            path: /actuator/health
+          tcpSocket:
             port: 8080
-          initialDelaySeconds: 15
+          initialDelaySeconds: 20
           periodSeconds: 10
+          timeoutSeconds: 2
         livenessProbe:
-          httpGet:
-            path: /actuator/health
+          tcpSocket:
             port: 8080
-          initialDelaySeconds: 30
+          initialDelaySeconds: 60
           periodSeconds: 20
+          timeoutSeconds: 2
 ---
 apiVersion: v1
 kind: Service
@@ -56,4 +57,5 @@ spec:
     - protocol: TCP
       port: 8080
       targetPort: 8080
-  type: ClusterIP
+      nodePort: 31087
+  type: NodePort
