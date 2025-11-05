@@ -3,7 +3,9 @@ import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import { 
     getEmployeeAssignments, 
-    enrichAssignmentsWithDetails 
+    enrichAssignmentsWithDetails,
+    getEmployeeWorkHours,
+    type WorkHoursResponse
 } from "@/app/api/employeeApi";
 
 interface Assignment {
@@ -24,10 +26,12 @@ export default function EmployeeDashboard() {
     const [recentAssignments, setRecentAssignments] = useState<Assignment[]>([]);
     const [workloadStats, setWorkloadStats] = useState({
         totalAssignments: 0,
-        inProgress: 0,
-        scheduled: 0,
+        activeWork: 0, // IN_PROGRESS + PAUSED
+        readyToStart: 0, // ASSIGNED (was "scheduled")
         completedToday: 0,
         totalHoursThisWeek: 0,
+        totalHoursThisWeekStr: '0 hr 0 min 0 sec',
+        totalHoursTodayStr: '0 hr 0 min 0 sec',
         averageCompletionTime: "0 min"
     });
     const [isLoading, setIsLoading] = useState(true);
@@ -91,13 +95,74 @@ export default function EmployeeDashboard() {
             setRecentAssignments(recent);
             
             // Calculate stats
+            // Active/Ongoing Work = IN_PROGRESS + PAUSED (both are work that needs to continue)
+            const activeWork = enrichedAssignments.filter(a => 
+                a.status === 'IN_PROGRESS' || a.status === 'PAUSED'
+            ).length;
+            
+            // Get work hours from backend
+            const workHours = await getEmployeeWorkHours(employeeId);
+            
+            // Calculate weekly hours (current week: Monday to Sunday)
+            const now = new Date();
+            const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+            const monday = new Date(now);
+            monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+            monday.setHours(0, 0, 0, 0);
+            
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            sunday.setHours(23, 59, 59, 999);
+
+            // Use ISO date (YYYY-MM-DD) comparisons to avoid timezone issues
+            const mondayISO = monday.toISOString().split('T')[0];
+            const sundayISO = sunday.toISOString().split('T')[0];
+
+            // compute seconds for week and today using workDate (expected as YYYY-MM-DD)
+            const weeklySeconds = workHours
+                .filter((h: WorkHoursResponse) => {
+                    if (!h || !h.workDate) return false;
+                    return h.workDate >= mondayISO && h.workDate <= sundayISO;
+                })
+                .reduce((total: number, h: WorkHoursResponse) => total + (h.totalSeconds || 0), 0);
+
+            const todayStr = now.toISOString().split('T')[0];
+            const todaySeconds = workHours
+                .filter((h: WorkHoursResponse) => h.workDate === todayStr)
+                .reduce((total: number, h: WorkHoursResponse) => total + (h.totalSeconds || 0), 0);
+
+            const formatSecondsToHuman = (secs: number) => {
+                const s = Math.max(0, Math.floor(secs));
+                const h = Math.floor(s / 3600);
+                const m = Math.floor((s % 3600) / 60);
+                const sec = s % 60;
+                const parts: string[] = [];
+                if (h > 0) parts.push(`${h} hr` + (h > 1 ? '' : ''));
+                if (m > 0) parts.push(`${m} min`);
+                parts.push(`${sec} sec`);
+                return parts.join(' ');
+            };
+            
+            // Calculate average completion time from completed assignments
+            // For now, using a placeholder - could calculate from time logs if needed
+            const completedAssignments = enrichedAssignments.filter(a => a.status === 'COMPLETED');
+            // Fallback average: use this week's seconds divided by number of completed assignments (if any)
+            let avgCompletionTime = "0 min";
+            if (completedAssignments.length > 0) {
+                const avgSec = Math.floor(weeklySeconds / completedAssignments.length);
+                const mins = Math.max(1, Math.round(avgSec / 60));
+                avgCompletionTime = `${mins} min`;
+            }
+            
             const stats = {
                 totalAssignments: enrichedAssignments.length,
-                inProgress: enrichedAssignments.filter(a => a.status === 'IN_PROGRESS').length,
-                scheduled: enrichedAssignments.filter(a => a.status === 'ASSIGNED').length,
+                activeWork: activeWork, // IN_PROGRESS + PAUSED combined
+                readyToStart: enrichedAssignments.filter(a => a.status === 'ASSIGNED').length, // Changed from "scheduled"
                 completedToday: enrichedAssignments.filter(a => a.status === 'COMPLETED').length, // Could add date check
-                totalHoursThisWeek: 0, // Would need time logs to calculate
-                averageCompletionTime: "0 min" // Would need time logs to calculate
+                totalHoursThisWeek: Math.round((weeklySeconds / 3600) * 10) / 10, // numeric hours for any legacy usage
+                totalHoursThisWeekStr: formatSecondsToHuman(weeklySeconds),
+                totalHoursTodayStr: formatSecondsToHuman(todaySeconds),
+                averageCompletionTime: avgCompletionTime
             };
             setWorkloadStats(stats);
         } catch (error) {
@@ -150,8 +215,9 @@ export default function EmployeeDashboard() {
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-gray-400 text-sm">In Progress</p>
-                                <p className="text-3xl font-bold text-yellow-500 mt-2">{workloadStats.inProgress}</p>
+                                <p className="text-gray-400 text-sm">Active Work</p>
+                                <p className="text-3xl font-bold text-yellow-500 mt-2">{workloadStats.activeWork}</p>
+                                <p className="text-xs text-gray-500 mt-1">In Progress + Paused</p>
                             </div>
                             <div className="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#eab308" className="w-6 h-6">
@@ -164,12 +230,12 @@ export default function EmployeeDashboard() {
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-gray-400 text-sm">Scheduled</p>
-                                <p className="text-3xl font-bold text-blue-500 mt-2">{workloadStats.scheduled}</p>
+                                <p className="text-gray-400 text-sm">Ready to Start</p>
+                                <p className="text-3xl font-bold text-blue-500 mt-2">{workloadStats.readyToStart}</p>
                             </div>
                             <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#3b82f6" className="w-6 h-6">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-16 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-16 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v12.75c0 .621.504 1.125 1.125 1.125h69.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H77.25z" />
                                 </svg>
                             </div>
                         </div>
@@ -196,7 +262,7 @@ export default function EmployeeDashboard() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-gray-400 text-sm">Hours This Week</p>
-                                <p className="text-3xl font-bold text-purple-500 mt-2">{workloadStats.totalHoursThisWeek}h</p>
+                                <p className="text-3xl font-bold text-purple-500 mt-2">{workloadStats.totalHoursThisWeekStr}</p>
                             </div>
                             <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#a855f7" className="w-6 h-6">
@@ -253,9 +319,14 @@ export default function EmployeeDashboard() {
                                                             In Progress
                                                         </span>
                                                     )}
+                                                    {assignment.status === 'PAUSED' && (
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400">
+                                                            Paused
+                                                        </span>
+                                                    )}
                                                     {(assignment.status === 'Scheduled' || assignment.status === 'ASSIGNED') && (
                                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
-                                                            Scheduled
+                                                            Ready to Start
                                                         </span>
                                                     )}
                                                     {assignment.status === 'COMPLETED' && (
@@ -339,12 +410,12 @@ export default function EmployeeDashboard() {
                             <h2 className="text-xl font-bold text-white mb-4">Workload Summary</h2>
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-gray-400 text-sm">Active Tasks</span>
-                                    <span className="text-white font-semibold">{workloadStats.inProgress}</span>
+                                    <span className="text-gray-400 text-sm">Active Work</span>
+                                    <span className="text-white font-semibold">{workloadStats.activeWork}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-gray-400 text-sm">Upcoming</span>
-                                    <span className="text-white font-semibold">{workloadStats.scheduled}</span>
+                                    <span className="text-gray-400 text-sm">Ready to Start</span>
+                                    <span className="text-white font-semibold">{workloadStats.readyToStart}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-gray-400 text-sm">Completed Today</span>
@@ -353,7 +424,11 @@ export default function EmployeeDashboard() {
                                 <div className="border-t border-gray-700 pt-4">
                                     <div className="flex items-center justify-between">
                                         <span className="text-gray-400 text-sm">Weekly Hours</span>
-                                        <span className="text-purple-500 font-semibold">{workloadStats.totalHoursThisWeek}h</span>
+                                        <span className="text-purple-500 font-semibold">{workloadStats.totalHoursThisWeekStr}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between mt-2">
+                                        <span className="text-gray-400 text-sm">Today</span>
+                                        <span className="text-purple-500 font-semibold">{workloadStats.totalHoursTodayStr}</span>
                                     </div>
                                 </div>
                             </div>

@@ -22,21 +22,6 @@ public class DtoMapper {
         return assignments.stream().map(DtoMapper::toDto).collect(Collectors.toList());
     }
 
-    // Schedule
-    public static ScheduleResponseDto toDto(Schedule s){
-        return new ScheduleResponseDto(
-                s.getId(),
-                s.getEmployeeId(),   // use employeeId field
-                s.getDate(),
-                s.getShiftStart(),
-                s.getShiftEnd()
-        );
-    }
-
-    public static List<ScheduleResponseDto> toScheduleDtoList(List<Schedule> schedules){
-        return schedules.stream().map(DtoMapper::toDto).collect(Collectors.toList());
-    }
-
     // TimeLog
     public static TimeLogResponseDto toDto(TimeLog log){
         return new TimeLogResponseDto(
@@ -50,5 +35,20 @@ public class DtoMapper {
 
     public static List<TimeLogResponseDto> toTimeLogDtoList(List<TimeLog> logs){
         return logs.stream().map(DtoMapper::toDto).collect(Collectors.toList());
+    }
+    
+    // DailyWorkHours
+    public static com.enterprise.employee_service.web.dto.WorkHoursResponseDto toWorkHoursDto(com.enterprise.employee_service.domain.DailyWorkHours dailyHours){
+        return new com.enterprise.employee_service.web.dto.WorkHoursResponseDto(
+                dailyHours.getId(),
+                dailyHours.getEmployeeId(),
+                dailyHours.getWorkDate(),
+                dailyHours.getTotalSeconds(),
+                dailyHours.getLogCount()
+        );
+    }
+    
+    public static List<com.enterprise.employee_service.web.dto.WorkHoursResponseDto> toWorkHoursDtoList(List<com.enterprise.employee_service.domain.DailyWorkHours> dailyHoursList){
+        return dailyHoursList.stream().map(DtoMapper::toWorkHoursDto).collect(Collectors.toList());
     }
 }
