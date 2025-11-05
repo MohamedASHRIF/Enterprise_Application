@@ -7,7 +7,7 @@ import styles from "./Chatbot.module.css";
 // Replace this with an actual import from your backend/api when available.
 async function sendChatMessage(text: string): Promise<string> {
   try {
-    const res = await fetch("/api/chat", {
+    const res = await fetch("http://localhost:8086/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: text }),
@@ -17,7 +17,7 @@ async function sendChatMessage(text: string): Promise<string> {
     return data?.reply ?? "Sorry, I couldn't understand the response.";
   } catch {
     // Fallback message if network or server fails
-    return "Sorry, I couldn't reach the chatbot backend. Please try again later.";
+    return "Sorry, I couldn't reach the server. Please try again later.";
   }
 }
 
@@ -58,7 +58,7 @@ export default function Chatbot(): React.ReactElement {
     } catch (err) {
       const botMsg: Msg = {
         from: "bot",
-        text: "Sorry, I couldn't reach the chatbot backend. Please try again later.",
+        text: "Sorry, I couldn't reach the server. Please try again later.",
       };
       setMessages((m) => [...m, botMsg]);
     } finally {

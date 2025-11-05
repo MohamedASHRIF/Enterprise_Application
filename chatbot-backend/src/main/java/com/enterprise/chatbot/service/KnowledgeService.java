@@ -34,8 +34,9 @@ public class KnowledgeService {
 
     public String findReply(String message) {
         if (message == null || message.trim().isEmpty()) {
-            return "Please send a question about the enterprise application.";
+            return null; // Let AI answer if user doesn't give a keyword
         }
+
         String t = message.toLowerCase();
         for (Entry e : entries) {
             for (String k : e.keywords) {
@@ -44,6 +45,7 @@ public class KnowledgeService {
                 }
             }
         }
-        return "Sorry — I can only answer questions about enterprise applications (authentication, services, notifications, employees, customers, appointments, vehicles, etc.).";
+
+        return null; //  Gemini answer if no match
     }
 }
