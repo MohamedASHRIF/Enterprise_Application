@@ -1,12 +1,28 @@
 "use client"
 import { useEffect, useState } from "react";
+import { defaultServices } from "@/lib/services";
 import Navbar from "@/components/Navbar";
+import adminApi from "../../../api/adminApi";
 
 export default function AdminServicesPage() {
     const [userRole, setUserRole] = useState<string | null>(null);
-    const [services, setServices] = useState<{ id: number; name: string; description: string; estimateMins: number; cost: number; active: boolean; }[]>([]);
-    const [form, setForm] = useState({ name: "", description: "", estimateMins: "", cost: "" });
+    const [services, setServices] = useState<{ id: number; name: string; description: string; estimateMins: number; cost: number; active: boolean; category?: string; }[]>(defaultServices);
+    const [form, setForm] = useState({ name: "", description: "", estimateMins: "", cost: "", category: "" });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const fetchServices = async () => {
+        setIsLoading(true);
+        try {
+            const res = await adminApi.get('/services');
+            setServices(res.data || []);
+        } catch (e) {
+            console.error('Failed to load services', e);
+            alert('Failed to load services');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
@@ -28,6 +44,7 @@ export default function AdminServicesPage() {
                 window.location.href = '/Dashboard';
                 return;
             }
+            fetchServices();
         } catch (error) {
             console.error('Error parsing user data:', error);
             localStorage.removeItem('user');
@@ -47,7 +64,7 @@ export default function AdminServicesPage() {
         );
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!form.name.trim() || !form.description.trim()) {
             alert('Please fill in service name and description.');
@@ -66,15 +83,22 @@ export default function AdminServicesPage() {
         setIsSubmitting(true);
         try {
             const nextId = services.length ? Math.max(...services.map(s => s.id)) + 1 : 1;
-            setServices([...services, { id: nextId, name: form.name.trim(), description: form.description.trim(), estimateMins: mins, cost: price, active: true }]);
-            setForm({ name: "", description: "", estimateMins: "", cost: "" });
+            setServices([...services, { id: nextId, name: form.name.trim(), description: form.description.trim(), estimateMins: mins, cost: price, active: true, category: form.category.trim() }]);
+            setForm({ name: "", description: "", estimateMins: "", cost: "", category: "" });
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const toggleActive = (id: number) => {
-        setServices(services.map(s => s.id === id ? { ...s, active: !s.active } : s));
+    const toggleActive = async (id: number) => {
+        try {
+            const res = await adminApi.patch(`/services/${id}/toggle`);
+            const { active } = res.data || {};
+            setServices(services.map(s => s.id === id ? { ...s, active: typeof active === 'boolean' ? active : !s.active } : s));
+        } catch (e) {
+            console.error('Failed to toggle service', e);
+            alert('Failed to toggle service');
+        }
     };
 
     return (
@@ -86,7 +110,7 @@ export default function AdminServicesPage() {
                     <p className="text-gray-400">Create, edit, and manage available services</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
                         <p className="text-gray-400 text-sm">Total Services</p>
                         <p className="text-3xl font-bold text-white mt-2">{services.length}</p>
@@ -95,11 +119,8 @@ export default function AdminServicesPage() {
                         <p className="text-gray-400 text-sm">Active</p>
                         <p className="text-3xl font-bold text-green-500 mt-2">{services.filter(s => s.active).length}</p>
                     </div>
-                    <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-                        <p className="text-gray-400 text-sm">Categories</p>
-                        <p className="text-3xl font-bold text-blue-500 mt-2">0</p>
-                    </div>
                 </div>
+
 
                 {/* Add Service Form */}
                 <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-8">
@@ -142,7 +163,20 @@ export default function AdminServicesPage() {
                                 required
                             />
                         </div>
-                        <div className="md:col-span-2">
+                        <div className="md:col-span-1">
+                            <label className="block text-sm font-medium text-gray-400 mb-2">Category (optional)</label>
+                            <select
+                                value={form.category}
+                                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                            >
+                                <option value="">Select category</option>
+                                <option value="immediate category">immediate category</option>
+                                <option value="minor category">minor category</option>
+                                <option value="major category">major category</option>
+                            </select>
+                        </div>
+                        <div className="md:col-span-2 md:col-start-1 md:col-end-3">
                             <label className="block text-sm font-medium text-gray-400 mb-2">Description</label>
                             <textarea
                                 rows={3}
@@ -163,7 +197,7 @@ export default function AdminServicesPage() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setForm({ name: "", description: "", estimateMins: "", cost: "" })}
+                                onClick={() => setForm({ name: "", description: "", estimateMins: "", cost: "", category: "" })}
                                 className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white font-semibold rounded-lg transition"
                             >
                                 Clear
@@ -186,7 +220,11 @@ export default function AdminServicesPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-800">
-                                {services.length === 0 ? (
+                                {isLoading ? (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-10 text-center text-gray-400">Loading services...</td>
+                                    </tr>
+                                ) : services.length === 0 ? (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-10 text-center text-gray-400">No services yet. Add your first service above.</td>
                                     </tr>
@@ -198,7 +236,7 @@ export default function AdminServicesPage() {
                                                 <div className="text-gray-400 text-sm line-clamp-2">{s.description}</div>
                                             </td>
                                             <td className="px-6 py-4 text-gray-300 text-sm">{s.estimateMins} min</td>
-                                            <td className="px-6 py-4 text-gray-300 text-sm">${'{'}s.cost.toFixed(2){'}'}</td>
+                                            <td className="px-6 py-4 text-gray-300 text-sm">${s.cost.toFixed(2)}</td>
                                             <td className="px-6 py-4">
                                                 {s.active ? (
                                                     <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-500/20 text-green-400">Active</span>
