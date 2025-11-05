@@ -15,7 +15,7 @@ public class NotificationClient {
     private final RestTemplate restTemplate;
 
     @Value("${notification.service.url}")
-    private String notificationServiceUrl; // e.g., http://localhost:8084
+    private String notificationServiceUrl; // e.g., http://localhost:8083
 
     public NotificationClient(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
