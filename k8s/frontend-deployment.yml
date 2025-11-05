@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: ghcr.io/YOUR_ORG/frontend:latest
+        image: enterprise-frontend:dev
+        imagePullPolicy: IfNotPresent
         ports:
           - containerPort: 3000
         readinessProbe:
