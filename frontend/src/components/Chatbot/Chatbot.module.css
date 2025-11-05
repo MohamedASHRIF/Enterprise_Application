@@ -79,6 +79,7 @@
   right: 0;
   bottom: 72px; /* place above the fab (56px + some gap) */
   width: 380px;
+  min-height: 400px; /* chatwindow height */
   max-height: 520px;
   background: #0b1220;
   color: #e6eef8;
@@ -130,6 +131,8 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* keep messages area reasonably tall on first open */
+  min-height: 220px;
 }
 
 .botMsg {
