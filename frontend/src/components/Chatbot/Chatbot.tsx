@@ -107,7 +107,7 @@ export default function Chatbot(): React.ReactElement {
             </button>
           </div>
 
-          <div className={styles.messages} ref={containerRef}>
+          <div className={styles.messages} ref={containerRef} aria-live="polite">
             {messages.map((m, i) => (
               <div
                 key={i}
@@ -116,6 +116,15 @@ export default function Chatbot(): React.ReactElement {
                 {m.text}
               </div>
             ))}
+
+            {/* Typing / thinking indicator shown while waiting for bot reply */}
+            {sending && (
+              <div className={styles.typing} aria-hidden>
+                <span />
+                <span />
+                <span />
+              </div>
+            )}
           </div>
 
           <div className={styles.inputRow}>

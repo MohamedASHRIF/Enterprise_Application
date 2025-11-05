@@ -127,6 +127,7 @@
 .messages {
   padding: 12px;
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
@@ -142,6 +143,43 @@
   padding: 8px 12px;
   border-radius: 8px;
   max-width: 85%;
+  /* ensure long text wraps instead of overflowing */
+  white-space: pre-wrap; /* preserve newlines but allow wrapping */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* typing / thinking indicator bubble */
+.typing {
+  align-self: flex-start;
+  background: rgba(255,255,255,0.03);
+  color: #e6eef8;
+  padding: 8px 12px;
+  border-radius: 8px;
+  max-width: 40%;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.typing span {
+  width: 8px;
+  height: 8px;
+  background: #e6eef8;
+  border-radius: 50%;
+  opacity: 0.4;
+  transform: translateY(0);
+  animation: typingBounce 900ms infinite ease-in-out;
+}
+
+.typing span:nth-child(1) { animation-delay: 0s; }
+.typing span:nth-child(2) { animation-delay: 120ms; }
+.typing span:nth-child(3) { animation-delay: 240ms; }
+
+@keyframes typingBounce {
+  0% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(-6px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 0.4; }
 }
 
 .userMsg {
@@ -151,6 +189,10 @@
   padding: 8px 12px;
   border-radius: 8px;
   max-width: 85%;
+  /* ensure long text wraps instead of overflowing */
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .inputRow {
