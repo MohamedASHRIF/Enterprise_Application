@@ -13,7 +13,7 @@ public class AuthClientService {
     public Long getCustomerIdByEmail(String email) {
         try {
             var response = webClient.get()
-                    .uri("http://localhost:8083/api/auth/user/{email}", email) // <- correct path
+                    .uri("http://localhost:8081/api/auth/user/{email}", email) // <- correct path
                     .retrieve()
                     .bodyToMono(UserResponse.class)
                     .block();
