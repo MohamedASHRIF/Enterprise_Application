@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { getAppointmentPublicById } from '@/app/api/customerApi';
 
 // Backend Integration: GET /api/appointments/{id}
 
@@ -10,44 +11,51 @@ export default function AppointmentDetailsPage() {
     const params = useParams();
     const appointmentId = params.id as string;
     
-    // Mock Data - Replace with backend API call
-    const [appointment] = useState({
-        id: "APT-001",
-        vehicle: {
-            id: 1,
-            make: "Toyota",
-            model: "Camry",
-            year: "2021",
-            plate: "ABC-1234",
-            color: "Silver"
-        },
-        service: {
-            id: 1,
-            name: "Oil Change",
-            description: "Standard oil and filter change",
-            duration: "30 min",
-            price: "$29.99"
-        },
-        date: "2024-12-20",
-        time: "10:00 AM",
-        status: "SCHEDULED",
-        employee: {
-            id: 1,
-            name: "Mike Johnson",
-            phone: "+1 (555) 123-4567",
-            email: "mike.johnson@autoflow.com"
-        },
-        notes: [
-            "Customer requested synthetic oil",
-            "Check tire pressure",
-            "Window already open - no need to unlock"
-        ],
-        estimatedDuration: "30 min",
-        actualDuration: null,
-        totalCost: 29.99,
-        createdAt: "2024-12-10T08:00:00",
-        updatedAt: "2024-12-10T08:00:00"
-    });
+    // Appointment state (loaded from backend)
+    const [appointment, setAppointment] = useState<any | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const load = async () => {
+            setIsLoading(true);
+            try {
+                const idNum = Number(appointmentId);
+                if (isNaN(idNum)) {
+                    setAppointment(null);
+                    return;
+                }
+                const res = await getAppointmentPublicById(idNum);
+                // customerApi returns the DTO or null
+                // Some implementations return { success, data }
+                if (res && res.data) setAppointment(res.data);
+                else setAppointment(res || null);
+            } catch (e) {
+                console.error('Failed to load appointment', e);
+                setAppointment(null);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        load();
+    }, [appointmentId]);
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-gray-950">
+                <Navbar />
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-white">Loading appointment...</div>
+            </div>
+        );
+    }
+
+    if (!appointment) {
+        return (
+            <div className="min-h-screen bg-gray-950">
+                <Navbar />
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-white">Appointment not found.</div>
+            </div>
+        );
+    }
 
     const getStatusInfo = (status: string) => {
         const statusConfig: { [key: string]: { color: string; text: string; icon: string; description: string } } = {
@@ -243,7 +251,7 @@ export default function AppointmentDetailsPage() {
                             Notes & Updates
                         </h3>
                         <div className="space-y-2">
-                            {appointment.notes.map((note, index) => (
+                            {appointment.notes.map((note: any, index: number) => (
                                 <div key={index} className="flex items-start gap-2 p-3 bg-gray-800 rounded-lg">
                                     <span className="text-cyan-400">•</span>
                                     <p className="text-gray-300 text-sm">{note}</p>
