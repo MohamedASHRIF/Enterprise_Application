@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import SockJS from "sockjs-client";
-import Stomp from "stompjs";
+import { Client } from "@stomp/stompjs";
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<any[]>([]);
-  const [selectedNotification, setSelectedNotification] = useState<any | null>(null);
+  const [selectedNotification, setSelectedNotification] = useState<any | null>(
+    null
+  );
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stompClient, setStompClient] = useState<any>(null);
@@ -18,7 +20,9 @@ export default function NotificationsPage() {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:8083/api/notifications/summary/${userEmail}`);
+      const res = await fetch(
+        `http://localhost:8083/api/notifications/summary/${userEmail}`
+      );
       const data = await res.json();
       setNotifications(data || []);
     } catch (error) {
@@ -33,35 +37,52 @@ export default function NotificationsPage() {
     // Load initial notifications
     fetchNotifications();
 
-    // WebSocket setup
-    const socket = new SockJS("http://localhost:8083/ws");
-    const client = Stomp.over(socket);
+    // WebSocket setup using @stomp/stompjs + SockJS (browser-friendly)
+    const client = new Client({
+      // using SockJS via webSocketFactory because backend exposes SockJS endpoint
+      webSocketFactory: () => new SockJS("http://localhost:8083/ws"),
+      reconnectDelay: 5000,
+      onConnect: () => {
+        console.log("✅ Connected to WebSocket");
 
-    client.connect({}, () => {
-      console.log("✅ Connected to WebSocket");
+        // Subscribe to real-time topic for this user
+        client.subscribe(
+          `/topic/notifications/${userEmail}`,
+          (message: any) => {
+            if (!message?.body) return;
+            const newNotification = JSON.parse(message.body as string);
+            console.log("📩 New notification received:", newNotification);
 
-      // Subscribe to real-time topic for this user
-      client.subscribe(`/topic/notifications/${userEmail}`, (message) => {
-        const newNotification = JSON.parse(message.body);
-        console.log("📩 New notification received:", newNotification);
-
-        // Add new notification instantly to the list
-        setNotifications((prev) => [newNotification, ...prev]);
-      });
+            // Add new notification instantly to the list
+            setNotifications((prev) => [newNotification, ...prev]);
+          }
+        );
+      },
+      onStompError: (frame: any) => {
+        console.error("STOMP error", frame);
+      },
     });
 
+    client.activate();
     setStompClient(client);
 
     // Cleanup when component unmounts
     return () => {
-      if (client) client.disconnect(() => console.log("❌ Disconnected from WebSocket"));
+      try {
+        client.deactivate();
+        console.log("❌ Disconnected from WebSocket");
+      } catch (e) {
+        /* noop */
+      }
     };
   }, [userEmail]);
 
   // 🔹 Mark one notification as read
   const handleMarkAsRead = async (id: number) => {
     try {
-      await fetch(`http://localhost:8083/api/notifications/${id}/read`, { method: "PATCH" });
+      await fetch(`http://localhost:8083/api/notifications/${id}/read`, {
+        method: "PATCH",
+      });
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, status: "READ" } : n))
       );
@@ -74,7 +95,9 @@ export default function NotificationsPage() {
   const handleNotificationClick = async (id: number, status: string) => {
     try {
       if (status === "UNREAD") await handleMarkAsRead(id);
-      const res = await fetch(`http://localhost:8083/api/notifications/detail/${id}`);
+      const res = await fetch(
+        `http://localhost:8083/api/notifications/detail/${id}`
+      );
       const detail = await res.json();
       setSelectedNotification(detail);
     } catch (error) {
@@ -85,9 +108,12 @@ export default function NotificationsPage() {
   // 🔹 Mark all as read
   const handleMarkAllRead = async () => {
     try {
-      await fetch(`http://localhost:8083/api/notifications/mark-all-read?userEmail=${userEmail}`, {
-        method: "PATCH",
-      });
+      await fetch(
+        `http://localhost:8083/api/notifications/mark-all-read?userEmail=${userEmail}`,
+        {
+          method: "PATCH",
+        }
+      );
       setNotifications((prev) => prev.map((n) => ({ ...n, status: "READ" })));
     } catch (error) {
       console.error("Error marking all as read:", error);
@@ -98,7 +124,9 @@ export default function NotificationsPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this notification?")) return;
     try {
-      await fetch(`http://localhost:8083/api/notifications/${id}`, { method: "DELETE" });
+      await fetch(`http://localhost:8083/api/notifications/${id}`, {
+        method: "DELETE",
+      });
       setNotifications((prev) => prev.filter((n) => n.id !== id));
       if (selectedNotification?.id === id) setSelectedNotification(null);
     } catch (error) {
@@ -169,7 +197,9 @@ export default function NotificationsPage() {
 
           {/* List */}
           {loading ? (
-            <p className="text-gray-400 text-center">Loading notifications...</p>
+            <p className="text-gray-400 text-center">
+              Loading notifications...
+            </p>
           ) : filteredNotifications.length > 0 ? (
             <div className="space-y-3">
               {filteredNotifications.map((n) => (
@@ -188,12 +218,16 @@ export default function NotificationsPage() {
                     <div>
                       <h3
                         className={`font-semibold mb-1 ${
-                          n.status === "UNREAD" ? "text-cyan-400" : "text-gray-200"
+                          n.status === "UNREAD"
+                            ? "text-cyan-400"
+                            : "text-gray-200"
                         }`}
                       >
                         {n.title}
                       </h3>
-                      <p className="text-gray-400 text-sm line-clamp-2">{n.message}</p>
+                      <p className="text-gray-400 text-sm line-clamp-2">
+                        {n.message}
+                      </p>
                     </div>
                     <button
                       onClick={(e) => {
@@ -208,7 +242,9 @@ export default function NotificationsPage() {
                   <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
                     <p>{formatTimeAgo(n.createdAt)}</p>
                     {n.status === "UNREAD" && (
-                      <span className="text-cyan-400 text-[11px] font-medium">● Unread</span>
+                      <span className="text-cyan-400 text-[11px] font-medium">
+                        ● Unread
+                      </span>
                     )}
                   </div>
                 </div>
