@@ -3,16 +3,34 @@
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import SockJS from "sockjs-client";
-import { Client } from "@stomp/stompjs";
+import { Client, IMessage } from "@stomp/stompjs";
+
+
+interface NotificationSummary {
+  id: number;
+  title: string;
+  status: string;
+  createdAt: string;
+  message?: string;
+}
+
+interface NotificationDetail {
+  id: number;
+  userEmail: string;
+  title: string;
+  message: string;
+  type: string;
+  status: string;
+  createdAt: string;
+}
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [selectedNotification, setSelectedNotification] = useState<any | null>(
-    null
-  );
+  const [notifications, setNotifications] = useState<NotificationSummary[]>([]);
+  const [selectedNotification, setSelectedNotification] =
+    useState<NotificationDetail | null>(null);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [stompClient, setStompClient] = useState<any>(null);
+  const [stompClient, setStompClient] = useState<Client | null>(null);
 
   const userEmail = "john@example.com"; // TODO: make dynamic later
 
@@ -23,7 +41,7 @@ export default function NotificationsPage() {
       const res = await fetch(
         `http://localhost:8083/api/notifications/summary/${userEmail}`
       );
-      const data = await res.json();
+      const data: NotificationSummary[] = await res.json();
       setNotifications(data || []);
     } catch (error) {
       console.error("Error fetching notifications:", error);
@@ -32,48 +50,37 @@ export default function NotificationsPage() {
     }
   };
 
-  // 🔹 Initialize WebSocket connection
+  // 🔹 Initialize WebSocket connection using @stomp/stompjs
   useEffect(() => {
-    // Load initial notifications
     fetchNotifications();
 
-    // WebSocket setup using @stomp/stompjs + SockJS (browser-friendly)
+    const socket = new SockJS("http://localhost:8083/ws");
     const client = new Client({
-      // using SockJS via webSocketFactory because backend exposes SockJS endpoint
-      webSocketFactory: () => new SockJS("http://localhost:8083/ws"),
-      reconnectDelay: 5000,
-      onConnect: () => {
-        console.log("✅ Connected to WebSocket");
-
-        // Subscribe to real-time topic for this user
-        client.subscribe(
-          `/topic/notifications/${userEmail}`,
-          (message: any) => {
-            if (!message?.body) return;
-            const newNotification = JSON.parse(message.body as string);
-            console.log("📩 New notification received:", newNotification);
-
-            // Add new notification instantly to the list
-            setNotifications((prev) => [newNotification, ...prev]);
-          }
-        );
-      },
-      onStompError: (frame: any) => {
-        console.error("STOMP error", frame);
-      },
+      webSocketFactory: () => socket,
+      reconnectDelay: 5000, // auto-reconnect every 5s
+      debug: (msg) => console.log(msg),
     });
+
+    client.onConnect = () => {
+      console.log("✅ Connected to WebSocket");
+
+      client.subscribe(`/topic/notifications/${userEmail}`, (message: IMessage) => {
+        const newNotification: NotificationSummary = JSON.parse(message.body);
+        console.log("📩 New notification received:", newNotification);
+        setNotifications((prev) => [newNotification, ...prev]);
+      });
+    };
+
+    client.onStompError = (frame) => {
+      console.error("❌ STOMP error:", frame.headers["message"], frame.body);
+    };
 
     client.activate();
     setStompClient(client);
 
-    // Cleanup when component unmounts
     return () => {
-      try {
-        client.deactivate();
-        console.log("❌ Disconnected from WebSocket");
-      } catch (e) {
-        /* noop */
-      }
+      client.deactivate();
+      console.log("❌ Disconnected from WebSocket");
     };
   }, [userEmail]);
 
@@ -98,7 +105,7 @@ export default function NotificationsPage() {
       const res = await fetch(
         `http://localhost:8083/api/notifications/detail/${id}`
       );
-      const detail = await res.json();
+      const detail: NotificationDetail = await res.json();
       setSelectedNotification(detail);
     } catch (error) {
       console.error("Error fetching notification detail:", error);
@@ -149,7 +156,6 @@ export default function NotificationsPage() {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  // 🔹 Filter unread if checkbox checked
   const filteredNotifications = notifications.filter((n) =>
     showUnreadOnly ? n.status === "UNREAD" : true
   );
@@ -162,7 +168,6 @@ export default function NotificationsPage() {
       <div className="max-w-7xl mx-auto px-4 py-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Notification List */}
         <div className="lg:col-span-2">
-          {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
             <div>
               <h1 className="text-3xl font-semibold mb-1">Notifications</h1>
@@ -182,7 +187,6 @@ export default function NotificationsPage() {
             )}
           </div>
 
-          {/* Filter */}
           <div className="flex items-center gap-3 mb-6">
             <label className="flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl cursor-pointer">
               <input
@@ -195,11 +199,8 @@ export default function NotificationsPage() {
             </label>
           </div>
 
-          {/* List */}
           {loading ? (
-            <p className="text-gray-400 text-center">
-              Loading notifications...
-            </p>
+            <p className="text-gray-400 text-center">Loading notifications...</p>
           ) : filteredNotifications.length > 0 ? (
             <div className="space-y-3">
               {filteredNotifications.map((n) => (
@@ -225,9 +226,11 @@ export default function NotificationsPage() {
                       >
                         {n.title}
                       </h3>
-                      <p className="text-gray-400 text-sm line-clamp-2">
-                        {n.message}
-                      </p>
+                      {n.message && (
+                        <p className="text-gray-400 text-sm line-clamp-2">
+                          {n.message}
+                        </p>
+                      )}
                     </div>
                     <button
                       onClick={(e) => {
@@ -272,7 +275,9 @@ export default function NotificationsPage() {
                   {selectedNotification.title}
                 </h2>
                 <p className="text-gray-400 text-sm mb-4">
-                  {new Date(selectedNotification.createdAt).toLocaleString()}
+                  {new Date(
+                    selectedNotification.createdAt
+                  ).toLocaleString()}
                 </p>
                 <hr className="border-gray-800 mb-4" />
                 <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
