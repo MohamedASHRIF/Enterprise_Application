@@ -1,6 +1,7 @@
 package org.example.customer_service.controllers;
 
 import lombok.RequiredArgsConstructor;
+import jakarta.servlet.http.HttpServletRequest;
 import org.example.customer_service.entities.Appointment;
 import org.example.customer_service.models.AppointmentStatus;
 import org.example.customer_service.services.AppointmentService;
@@ -61,6 +62,8 @@ public class AppointmentController {
 
         List<Appointment> list = appointmentService.getAppointmentsByCustomer(customerId);
         return ResponseEntity.ok(list);
+    }
+
     @GetMapping("/customer/{customerId}")
     public List<Appointment> getAppointmentsByCustomer(@PathVariable Long customerId) {
         return appointmentService.getAppointmentsByCustomer(customerId);
