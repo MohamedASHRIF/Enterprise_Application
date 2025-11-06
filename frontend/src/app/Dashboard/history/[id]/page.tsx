@@ -1,59 +1,57 @@
 "use client"
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
-
-// Backend Integration: GET /api/services/history/{id}
+import customerApi from "@/app/api/customerApi";
 
 export default function ServiceDetailsPage() {
     const router = useRouter();
     const params = useParams();
     const serviceId = params.id as string;
-    
-    // Mock Data - Replace with backend API call
-    const [service] = useState({
-        id: "SRV-001",
-        date: "2024-12-10",
-        vehicle: {
-            id: 4,
-            make: "Ford",
-            model: "F-150",
-            year: "2022",
-            plate: "FRD-3456",
-            color: "Red"
-        },
-        services: [
-            { name: "Full Service", description: "Complete vehicle inspection and maintenance", price: 120.00 },
-            { name: "Tire Rotation", description: "Rotate tires for even wear", price: 40.00 },
-            { name: "Oil Change", description: "Synthetic oil and filter replacement", price: 39.99 }
-        ],
-        cost: 199.99,
-        status: "COMPLETED",
-        technician: {
-            id: 1,
-            name: "Mike Johnson",
-            phone: "+1 (555) 123-4567",
-            email: "mike.johnson@autoflow.com"
-        },
-        duration: "2h 30min",
-        completedAt: "2024-12-10T13:00:00",
-        notes: [
-            "Customer requested synthetic oil upgrade",
-            "Found minor tire wear on front tires - recommend rotation every 5000 miles",
-            "All fluid levels checked and topped up",
-            "Battery tested - good condition"
-        ],
-        partsUsed: [
-            { name: "Synthetic Oil (5W-30)", quantity: 6, price: 35.00 },
-            { name: "Oil Filter", quantity: 1, price: 12.99 },
-            { name: "Air Filter", quantity: 1, price: 24.99 }
-        ],
-        beforePhotos: 3,
-        afterPhotos: 3,
-        nextServiceReminder: "2025-02-10",
-        rating: 5,
-        feedback: "Excellent service as always! Mike was very professional and explained everything clearly."
-    });
+    const [service, setService] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchServiceDetails = async () => {
+            try {
+                setLoading(true);
+                const response = await customerApi.get(`/api/appointments/${serviceId}`);
+                const apt = response.data;
+                
+                // Transform appointment data to service history format
+                setService({
+                    id: apt.id?.toString() || serviceId,
+                    date: apt.appointmentDate || apt.date || '',
+                    vehicle: apt.vehicle || { make: '', model: '', year: '', plate: '', color: '' },
+                    services: [{
+                        name: apt.service?.name || 'Service',
+                        description: apt.service?.description || '',
+                        price: apt.totalCost || 0
+                    }],
+                    cost: apt.totalCost || 0,
+                    status: apt.status || 'COMPLETED',
+                    technician: apt.employee || { name: 'TBD', phone: '', email: '' },
+                    duration: apt.actualDuration ? `${apt.actualDuration} min` : apt.estimatedDuration || 'N/A',
+                    completedAt: apt.updatedAt || apt.createdAt || '',
+                    notes: apt.notes || [],
+                    partsUsed: [],
+                    beforePhotos: 0,
+                    afterPhotos: 0,
+                    nextServiceReminder: '',
+                    rating: apt.rating || null,
+                    feedback: apt.feedback || null
+                });
+            } catch (error) {
+                console.error('Error fetching service details:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (serviceId) {
+            fetchServiceDetails();
+        }
+    }, [serviceId]);
 
     const getStarRating = (rating: number) => {
         return Array(5).fill(0).map((_, i) => (
@@ -64,9 +62,32 @@ export default function ServiceDetailsPage() {
     };
 
     const formatDate = (dateString: string) => {
+        if (!dateString) return 'N/A';
         const date = new Date(dateString);
         return date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gray-950">
+                <Navbar />
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="text-gray-400 text-center py-12">Loading service details...</div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!service) {
+        return (
+            <div className="min-h-screen bg-gray-950">
+                <Navbar />
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="text-gray-400 text-center py-12">Service not found</div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-950">
@@ -216,18 +237,6 @@ export default function ServiceDetailsPage() {
                     </div>
                 )}
 
-                {/* Next Service Reminder */}
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-6 mb-6">
-                    <div className="flex items-center gap-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-blue-400">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                        </svg>
-                        <div>
-                            <h4 className="text-white font-bold">Next Service Reminder</h4>
-                            <p className="text-gray-300 text-sm">Scheduled for {formatDate(service.nextServiceReminder)}</p>
-                        </div>
-                    </div>
-                </div>
 
                 {/* Photos Placeholder */}
                 <div className="grid grid-cols-2 gap-4 mb-6">
@@ -258,6 +267,7 @@ export default function ServiceDetailsPage() {
         </div>
     );
 }
+
 
 
 

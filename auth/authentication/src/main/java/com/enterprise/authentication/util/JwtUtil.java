@@ -21,16 +21,30 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8));
     }
 
-    // Generate JWT token
+    // Generate JWT token with email only (for backward compatibility)
     public String generateToken(String email) {
+        return generateToken(email, null, null);
+    }
+
+    // Generate JWT token with email, user ID, and role
+    public String generateToken(String email, Long userId, String role) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + EXPIRATION_TIME);
 
-        return Jwts.builder()
-                .subject(email) // ✅ modern method name
+        var builder = Jwts.builder()
+                .subject(email)
                 .issuedAt(now)
-                .expiration(expiryDate)
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .expiration(expiryDate);
+
+        // Add user ID and role as claims if provided
+        if (userId != null) {
+            builder.claim("id", userId);
+        }
+        if (role != null) {
+            builder.claim("role", role);
+        }
+
+        return builder.signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
@@ -47,8 +61,8 @@ public class JwtUtil {
 
     // Get all claims
     private Claims getClaims(String token) {
-        return Jwts.parser() // ✅ use parser(), not parserBuilder()
-                .verifyWith(getSigningKey()) // ✅ 0.12.x API
+        return Jwts.parser()
+                .verifyWith(getSigningKey())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

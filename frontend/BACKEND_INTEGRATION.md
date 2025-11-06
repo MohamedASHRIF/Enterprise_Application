@@ -320,3 +320,34 @@ To test with real backend:
 3. Add error handling and loading states
 4. Test each endpoint individually
 
+---
+
+## Required Services for Customer Frontend Integration
+
+**You do NOT need to run all services!** Only these are required:
+
+### Essential Services:
+1. **Database (PostgreSQL)** - Port 5433
+2. **Auth Service** - Port 8081  
+3. **Customer Service** - Port 8085
+
+### Optional:
+4. **Notification Service** - Port 8083 (only if you need notifications)
+
+### Not Needed:
+- Admin Service
+- Employee Service
+- Chatbot Backend
+
+### Quick Start:
+```powershell
+# Run only required services
+docker-compose up db auth customer_service
+```
+
+### Frontend API Configuration:
+- **Auth endpoints** (`/auth/*`): Use `api.tsx` → `http://localhost:8081/api`
+- **Customer endpoints** (`/api/appointments/*`, `/api/vehicles/*`): Use `customerApi.ts` → `http://localhost:8085`
+
+See `customerApi.ts` for customer service API configuration.
+

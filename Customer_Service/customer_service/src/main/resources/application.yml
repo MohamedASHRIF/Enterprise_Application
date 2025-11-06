@@ -1,9 +1,9 @@
 server:
-  port: 8080
+  port: 8085
 
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://db:5432/appdb}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/appdb}
     username: ${SPRING_DATASOURCE_USERNAME:appuser}
     password: ${SPRING_DATASOURCE_PASSWORD:changeme}
     driver-class-name: org.postgresql.Driver

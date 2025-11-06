@@ -1,11 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
-
-// Backend Integration: Replace with real API calls
-// GET /api/appointments/upcoming
-// GET /api/appointments/status-counts
-// GET /api/vehicles
+import customerApi from "@/app/api/customerApi";
 
 export default function Dashboard() {
     const [userName, setUserName] = useState('User');
@@ -14,8 +10,20 @@ export default function Dashboard() {
         make: '',
         model: '',
         year: '',
-        plate: ''
+        plate: '',
+        color: '',
+        vin: ''
     });
+    const [loading, setLoading] = useState(true);
+    const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
+    const [statusCounts, setStatusCounts] = useState({
+        scheduled: 0,
+        inProgress: 0,
+        completed: 0,
+        cancelled: 0
+    });
+    const [vehicles, setVehicles] = useState<any[]>([]);
+    const [customerId, setCustomerId] = useState<number | null>(null);
 
     useEffect(() => {
         // Fetch real user data from localStorage
@@ -31,8 +39,6 @@ export default function Dashboard() {
                     return;
                 }
                 
-            
-                
                 const name = userData.firstName && userData.lastName 
                     ? `${userData.firstName} ${userData.lastName}` 
                     : userData.email || 'User';
@@ -44,55 +50,197 @@ export default function Dashboard() {
         }
     }, []);
 
-    // Mock Data - Replace with backend API calls
-    const [upcomingAppointments] = useState([
-        {
-            id: "APT-001",
-            vehicle: "Toyota Camry",
-            service: "Oil Change",
-            date: "2024-12-20",
-            time: "10:00 AM",
-            status: "Scheduled",
-            employee: "Mike Johnson"
-        },
-        {
-            id: "APT-002",
-            vehicle: "Honda Civic",
-            service: "Tire Rotation",
-            date: "2024-12-22",
-            time: "2:00 PM",
-            status: "Scheduled",
-            employee: "Sarah Williams"
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            try {
+                setLoading(true);
+                
+                // Check if user is logged in
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    console.warn('No authentication token found, redirecting to login');
+                    window.location.href = '/';
+                    return;
+                }
+                
+                // Try to get user profile from API, fallback to localStorage
+                let userId: number | null = null;
+                try {
+                    const userResponse = await customerApi.get('/api/users/me');
+                    console.log('User API response:', userResponse.data);
+                    // Handle both id and userId fields, and check for null
+                    userId = userResponse.data?.id || userResponse.data?.userId || null;
+                    if (userId) {
+                        setCustomerId(userId);
+                    }
+                } catch (apiError: any) {
+                    console.warn('Failed to fetch user from API, using localStorage:', apiError);
+                }
+                
+                // Fallback to localStorage if API didn't return ID
+                if (!userId) {
+                    const storedUser = localStorage.getItem('user');
+                    if (storedUser) {
+                        try {
+                            const userData = JSON.parse(storedUser);
+                            userId = userData.id || userData.userId || null;
+                            if (userId) {
+                                setCustomerId(userId);
+                            }
+                        } catch (parseError) {
+                            console.error('Failed to parse user data from localStorage:', parseError);
+                        }
+                    }
+                }
+                
+                if (!userId) {
+                    console.warn('No user ID available - some features may be limited');
+                    console.log('Debug info:', {
+                        tokenExists: !!token,
+                        storedUser: localStorage.getItem('user'),
+                        apiResponse: 'Check network tab for /api/users/me response'
+                    });
+                    // Continue - appointments endpoint doesn't need userId in URL
+                    // Vehicles will be skipped but that's okay
+                }
+
+                // Fetch appointments
+                let allAppointments: any[] = [];
+                try {
+                    const appointmentsResponse = await customerApi.get('/api/appointments/my');
+                    allAppointments = appointmentsResponse.data || [];
+                } catch (apptError: any) {
+                    console.warn('Failed to fetch appointments:', apptError);
+                    // Continue with empty array
+                    allAppointments = [];
+                }
+                
+                // Filter upcoming appointments (SCHEDULED status, limit to 2)
+                const upcoming = allAppointments
+                    .filter((apt: any) => apt.status === 'SCHEDULED' || apt.status === 'IN_PROGRESS')
+                    .slice(0, 2)
+                    .map((apt: any) => ({
+                        id: apt.id?.toString() || `APT-${apt.id}`,
+                        vehicle: `${apt.vehicle?.make || ''} ${apt.vehicle?.model || ''}`.trim() || 'Unknown Vehicle',
+                        service: apt.service?.name || 'Service',
+                        date: apt.appointmentDate || apt.date || '',
+                        time: apt.appointmentTime || apt.time || '',
+                        status: apt.status || 'SCHEDULED',
+                        employee: apt.employee?.name || 'TBD'
+                    }));
+                setUpcomingAppointments(upcoming);
+
+                // Calculate status counts
+                const counts = {
+                    scheduled: allAppointments.filter((apt: any) => apt.status === 'SCHEDULED').length,
+                    inProgress: allAppointments.filter((apt: any) => apt.status === 'IN_PROGRESS').length,
+                    completed: allAppointments.filter((apt: any) => apt.status === 'COMPLETED').length,
+                    cancelled: allAppointments.filter((apt: any) => apt.status === 'CANCELLED').length
+                };
+                setStatusCounts(counts);
+
+                // Fetch vehicles if customerId is available
+                if (userId) {
+                    try {
+                        const vehiclesResponse = await customerApi.get(`/api/vehicles/customer/${userId}`);
+                        console.log('Dashboard - Fetched vehicles:', vehiclesResponse.data);
+                        console.log('Dashboard - User ID:', userId);
+                        // Ensure vehicles is always an array
+                        const vehiclesData = vehiclesResponse.data;
+                        if (Array.isArray(vehiclesData)) {
+                            // Transform vehicles to match component expectations
+                            const transformedVehicles = vehiclesData.map((v: any) => ({
+                                id: v.id,
+                                make: v.make || '',
+                                model: v.model || '',
+                                year: v.year?.toString() || '',
+                                plate: v.plate || '',
+                                color: v.color || '',
+                                vin: v.VIN || v.vin || '',
+                                isDefault: v.isDefault || false
+                            }));
+                            console.log('Dashboard - Transformed vehicles:', transformedVehicles);
+                            setVehicles(transformedVehicles);
+                        } else {
+                            console.warn('Vehicles response is not an array:', vehiclesData);
+                            setVehicles([]);
+                        }
+                    } catch (error) {
+                        console.error('Error fetching vehicles:', error);
+                        setVehicles([]);
+                    }
+                } else {
+                    console.warn('Skipping vehicle fetch - no user ID available');
+                    setVehicles([]);
+                }
+            } catch (error) {
+                console.error('Error fetching dashboard data:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchDashboardData();
+        
+        // Listen for custom refresh event
+        const handleRefresh = () => {
+            console.log('Custom refresh event triggered for dashboard');
+            fetchDashboardData();
+        };
+        
+        window.addEventListener('vehicles-refresh', handleRefresh);
+        
+        // Refresh when page becomes visible
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                console.log('Dashboard visible, refreshing data');
+                fetchDashboardData();
+            }
+        };
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        return () => {
+            window.removeEventListener('vehicles-refresh', handleRefresh);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
+
+    const handleAddVehicle = async () => {
+        if (!newVehicle.make || !newVehicle.model || !newVehicle.year || !newVehicle.plate) {
+            alert('Please fill in all required fields');
+            return;
         }
-    ]);
 
-    const [statusCounts] = useState({
-        scheduled: 2,
-        inProgress: 1,
-        completed: 5
-    });
+        if (!customerId) {
+            alert('Unable to add vehicle. Please refresh the page.');
+            return;
+        }
 
-    const [vehicles, setVehicles] = useState([
-        { id: 1, make: "Toyota", model: "Camry", year: "2021", plate: "ABC-1234" },
-        { id: 2, make: "Honda", model: "Civic", year: "2020", plate: "XYZ-5678" }
-    ]);
-
-    const handleAddVehicle = () => {
-        if (newVehicle.make && newVehicle.model && newVehicle.year && newVehicle.plate) {
-            const newId = vehicles.length > 0 ? Math.max(...vehicles.map(v => v.id)) + 1 : 1;
-            const vehicle = {
-                id: newId,
+        try {
+            const vehicleData = {
+                customerId: customerId,
                 make: newVehicle.make,
                 model: newVehicle.model,
                 year: newVehicle.year,
-                plate: newVehicle.plate
+                plate: newVehicle.plate,
+                color: newVehicle.color || '',
+                vin: newVehicle.vin || ''
             };
-            setVehicles([...vehicles, vehicle]);
-            setNewVehicle({ make: '', model: '', year: '', plate: '' });
+
+            const response = await customerApi.post('/api/vehicles', vehicleData);
+            // Ensure vehicles is an array before adding
+            if (Array.isArray(vehicles)) {
+                setVehicles([...vehicles, response.data]);
+            } else {
+                setVehicles([response.data]);
+            }
+            setNewVehicle({ make: '', model: '', year: '', plate: '', color: '', vin: '' });
             setShowAddVehicleModal(false);
             alert('Vehicle added successfully!');
-        } else {
-            alert('Please fill in all fields');
+        } catch (error: any) {
+            console.error('Error adding vehicle:', error);
+            alert(error.response?.data?.message || 'Failed to add vehicle. Please try again.');
         }
     };
 
@@ -178,7 +326,10 @@ export default function Dashboard() {
                         </div>
 
                         <div className="space-y-4">
-                            {upcomingAppointments.map((apt) => (
+                            {loading ? (
+                                <div className="text-gray-400 text-center py-8">Loading appointments...</div>
+                            ) : upcomingAppointments.length > 0 ? (
+                                upcomingAppointments.map((apt) => (
                                 <div key={apt.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-cyan-500/50 transition">
                                     <div className="flex items-start justify-between">
                                         <div className="flex-1">
@@ -200,7 +351,10 @@ export default function Dashboard() {
                                         </div>
                                     </div>
                                 </div>
-                            ))}
+                            ))
+                            ) : (
+                                <div className="text-gray-400 text-center py-8">No upcoming appointments</div>
+                            )}
                         </div>
 
                         <a href="/Dashboard/book-service" className="mt-4 block text-center py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-lg transition">
@@ -220,7 +374,10 @@ export default function Dashboard() {
                             </div>
 
                             <div className="space-y-3">
-                                {vehicles.map((vehicle) => (
+                                {loading ? (
+                                    <div className="text-gray-400 text-center py-4">Loading vehicles...</div>
+                                ) : Array.isArray(vehicles) && vehicles.length > 0 ? (
+                                    vehicles.map((vehicle) => (
                                     <div key={vehicle.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
@@ -234,7 +391,10 @@ export default function Dashboard() {
                                             </div>
                                         </div>
                                     </div>
-                                ))}
+                                ))
+                                ) : (
+                                    <div className="text-gray-400 text-center py-4">No vehicles registered</div>
+                                )}
                             </div>
 
                             <button 
@@ -337,6 +497,26 @@ export default function Dashboard() {
                                     onChange={(e) => setNewVehicle({...newVehicle, plate: e.target.value})}
                                     className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
                                     placeholder="e.g., ABC-1234"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-400 text-sm mb-2">Color (Optional)</label>
+                                <input
+                                    type="text"
+                                    value={newVehicle.color}
+                                    onChange={(e) => setNewVehicle({...newVehicle, color: e.target.value})}
+                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                                    placeholder="e.g., Red"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-400 text-sm mb-2">VIN (Optional)</label>
+                                <input
+                                    type="text"
+                                    value={newVehicle.vin}
+                                    onChange={(e) => setNewVehicle({...newVehicle, vin: e.target.value})}
+                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                                    placeholder="Vehicle Identification Number"
                                 />
                             </div>
                         </div>

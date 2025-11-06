@@ -1,5 +1,6 @@
 package org.example.customer_service.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.customer_service.models.AppointmentStatus;
@@ -24,14 +25,16 @@ public class Appointment {
 
     @ManyToOne
     @JoinColumn(name = "vehicle_id", nullable = false)
+    @JsonIgnoreProperties("appointments") // Prevent circular reference
     private Vehicle vehicle;
 
     @ManyToOne
     @JoinColumn(name = "service_id", nullable = false)
+    @JsonIgnoreProperties("appointments") // Prevent circular reference
     private Service service;
 
     @ManyToOne
-    @JoinColumn(name = "employee_id", nullable = false)
+    @JoinColumn(name = "employee_id", nullable = true)
     private Employee employee;
 
     private LocalDate appointmentDate;

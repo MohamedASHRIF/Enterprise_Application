@@ -1,95 +1,50 @@
 "use client"
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-
-// Backend Integration: GET /api/services/history
+import customerApi from "@/app/api/customerApi";
 
 export default function ServiceHistoryPage() {
     const router = useRouter();
     const [selectedFilter, setSelectedFilter] = useState('all');
-    
-    // Mock Data - Replace with backend API calls
-    const [services] = useState([
-        {
-            id: "SRV-001",
-            date: "2024-12-10",
-            vehicle: "Ford F-150",
-            vehicleId: 4,
-            services: ["Full Service", "Tire Rotation", "Oil Change"],
-            cost: 199.99,
-            status: "COMPLETED",
-            technician: "Mike Johnson",
-            duration: "2h 30min",
-            rating: 5,
-            hasFeedback: true
-        },
-        {
-            id: "SRV-002",
-            date: "2024-12-05",
-            vehicle: "BMW 3 Series",
-            vehicleId: 5,
-            services: ["AC Service", "Air Filter Replacement"],
-            cost: 79.99,
-            status: "COMPLETED",
-            technician: "Sarah Williams",
-            duration: "1h 15min",
-            rating: 4,
-            hasFeedback: true
-        },
-        {
-            id: "SRV-003",
-            date: "2024-11-28",
-            vehicle: "Toyota Camry",
-            vehicleId: 1,
-            services: ["Oil Change", "Tire Pressure Check"],
-            cost: 29.99,
-            status: "COMPLETED",
-            technician: "Mike Johnson",
-            duration: "30min",
-            rating: 5,
-            hasFeedback: false
-        },
-        {
-            id: "SRV-004",
-            date: "2024-11-20",
-            vehicle: "Honda Civic",
-            vehicleId: 2,
-            services: ["Brake Inspection", "Brake Pad Replacement"],
-            cost: 149.99,
-            status: "COMPLETED",
-            technician: "John Smith",
-            duration: "2h 0min",
-            rating: 5,
-            hasFeedback: true
-        },
-        {
-            id: "SRV-005",
-            date: "2024-11-10",
-            vehicle: "Tesla Model 3",
-            vehicleId: 3,
-            services: ["Battery Check", "Charging Port Inspection"],
-            cost: 99.99,
-            status: "COMPLETED",
-            technician: "Sarah Williams",
-            duration: "1h 45min",
-            rating: 4,
-            hasFeedback: true
-        },
-        {
-            id: "SRV-006",
-            date: "2024-10-25",
-            vehicle: "Ford F-150",
-            vehicleId: 4,
-            services: ["Routine Maintenance", "Fluid Top-ups"],
-            cost: 59.99,
-            status: "COMPLETED",
-            technician: "Mike Johnson",
-            duration: "45min",
-            rating: 5,
-            hasFeedback: false
-        }
-    ]);
+    const [services, setServices] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchHistory = async () => {
+            try {
+                setLoading(true);
+                // Fetch completed appointments as service history
+                const response = await customerApi.get('/api/appointments/my');
+                const allAppointments = response.data || [];
+                
+                // Filter only completed appointments and transform to history format
+                const historyServices = allAppointments
+                    .filter((apt: any) => apt.status === 'COMPLETED')
+                    .map((apt: any) => ({
+                        id: apt.id?.toString() || `SRV-${apt.id}`,
+                        date: apt.appointmentDate || apt.date || '',
+                        vehicle: `${apt.vehicle?.make || ''} ${apt.vehicle?.model || ''}`.trim() || 'Unknown Vehicle',
+                        vehicleId: apt.vehicleId || apt.vehicle?.id,
+                        services: [apt.service?.name || 'Service'],
+                        cost: apt.totalCost || 0,
+                        status: apt.status || 'COMPLETED',
+                        technician: apt.employee?.name || 'TBD',
+                        duration: apt.actualDuration ? `${apt.actualDuration} min` : apt.estimatedDuration || 'N/A',
+                        rating: apt.rating || null,
+                        hasFeedback: !!apt.feedback || !!apt.rating
+                    }));
+                
+                setServices(historyServices);
+            } catch (error) {
+                console.error('Error fetching service history:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchHistory();
+    }, []);
 
     const handleViewDetails = (id: string) => {
         router.push(`/Dashboard/history/${id}`);
@@ -178,7 +133,11 @@ export default function ServiceHistoryPage() {
                 </div>
 
                 {/* Services List */}
-                {filteredServices.length > 0 ? (
+                {loading ? (
+                    <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
+                        <div className="text-gray-400">Loading service history...</div>
+                    </div>
+                ) : filteredServices.length > 0 ? (
                     <div className="space-y-4">
                         {filteredServices.map((service) => (
                             <div
@@ -298,6 +257,7 @@ export default function ServiceHistoryPage() {
         </div>
     );
 }
+
 
 
 

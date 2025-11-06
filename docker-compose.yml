@@ -86,11 +86,16 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_CUSTOMER_BASE_URL=http://localhost:8085
+    environment:
+      - NEXT_PUBLIC_CUSTOMER_BASE_URL=http://localhost:8085
     ports:
       - "3000:3000"
     depends_on:
       - auth
       - notification
+      - customer_service
 
 volumes:
   pgdata:

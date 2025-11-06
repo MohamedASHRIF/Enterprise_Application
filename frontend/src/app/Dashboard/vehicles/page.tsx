@@ -1,116 +1,175 @@
 "use client"
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import VehicleList from "@/components/vehicles/VehicleList";
 import VehicleStats from "@/components/vehicles/VehicleStats";
-
-// Backend Integration: Replace with real API calls
-// GET /api/vehicles
+import customerApi from "@/app/api/customerApi";
 
 export default function VehiclesPage() {
     const router = useRouter();
+    const pathname = usePathname();
     
-    // Mock Data - Replace with backend API calls
-    const [vehicles] = useState([
-        { 
-            id: 1, 
-            make: "Toyota", 
-            model: "Camry", 
-            year: "2021", 
-            plate: "ABC-1234",
-            color: "Silver",
-            isDefault: true
-        },
-        { 
-            id: 2, 
-            make: "Honda", 
-            model: "Civic", 
-            year: "2020", 
-            plate: "XYZ-5678",
-            color: "Black",
-            isDefault: false
-        },
-        
-        { 
-            id: 4, 
-            make: "Ford", 
-            model: "F-150", 
-            year: "2022", 
-            plate: "FRD-3456",
-            color: "Red",
-            isDefault: false
-        },
-        { 
-            id: 5, 
-            make: "BMW", 
-            model: "3 Series", 
-            year: "2023", 
-            plate: "BMW-7890",
-            color: "Blue",
-            isDefault: false
-        },
-        { 
-            id: 6, 
-            make: "Mercedes-Benz", 
-            model: "C-Class", 
-            year: "2021", 
-            plate: "MRC-1122",
-            color: "Black",
-            isDefault: false
-        },
-        { 
-            id: 7, 
-            make: "Chevrolet", 
-            model: "Silverado", 
-            year: "2022", 
-            plate: "CHV-4455",
-            color: "Gray",
-            isDefault: false
-        },
-        { 
-            id: 8, 
-            make: "Audi", 
-            model: "A4", 
-            year: "2023", 
-            plate: "AUD-6677",
-            color: "White",
-            isDefault: false
-        },
-        { 
-            id: 9, 
-            make: "Nissan", 
-            model: "Altima", 
-            year: "2020", 
-            plate: "NSN-8899",
-            color: "Silver",
-            isDefault: false
-        },
-        { 
-            id: 10, 
-            make: "Hyundai", 
-            model: "Elantra", 
-            year: "2021", 
-            plate: "HYU-1020",
-            color: "Red",
-            isDefault: false
+    const [vehicles, setVehicles] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [customerId, setCustomerId] = useState<number | null>(null);
+
+    const fetchVehicles = async () => {
+        try {
+            setLoading(true);
+            // Get user profile to extract customerId
+            const userResponse = await customerApi.get('/api/users/me');
+            const userId = userResponse.data.id;
+            setCustomerId(userId);
+
+            if (userId) {
+                const response = await customerApi.get(`/api/vehicles/customer/${userId}`);
+                console.log('Fetched vehicles response:', response);
+                console.log('Fetched vehicles data type:', typeof response.data);
+                console.log('Fetched vehicles data:', response.data);
+                console.log('User ID used for fetch:', userId);
+                
+                // Handle case where response.data might be a JSON string
+                let vehiclesData = response.data;
+                if (typeof vehiclesData === 'string') {
+                    try {
+                        vehiclesData = JSON.parse(vehiclesData);
+                        console.log('Parsed vehicles data from string:', vehiclesData);
+                    } catch (e) {
+                        console.error('Failed to parse vehicles data:', e);
+                        vehiclesData = [];
+                    }
+                }
+                
+                // Ensure vehiclesData is an array
+                if (Array.isArray(vehiclesData)) {
+                    // Transform vehicles to match component expectations
+                    const transformedVehicles = vehiclesData.map((v: any) => ({
+                        id: v.id,
+                        make: v.make || '',
+                        model: v.model || '',
+                        year: v.year?.toString() || '',
+                        plate: v.plate || '',
+                        color: v.color || '',
+                        vin: v.VIN || v.vin || '',
+                        isDefault: v.isDefault || false // Add default flag if not present
+                    }));
+                    console.log('Transformed vehicles:', transformedVehicles);
+                    setVehicles(transformedVehicles);
+                } else {
+                    console.warn('Vehicles response is not an array:', vehiclesData);
+                    setVehicles([]);
+                }
+            } else {
+                console.warn('No userId available, cannot fetch vehicles');
+            }
+        } catch (error: any) {
+            console.error('Error fetching vehicles:', error);
+            console.error('Error details:', {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status,
+                url: error.config?.url
+            });
+            setVehicles([]); // Set empty array on error
+        } finally {
+            setLoading(false);
         }
-    ]);
+    };
+
+    useEffect(() => {
+        const loadVehicles = async () => {
+            // Always fetch vehicles on mount
+            await fetchVehicles();
+            
+            // Check if we need to refresh (coming from add/edit)
+            const shouldRefresh = sessionStorage.getItem('vehicles-refresh');
+            if (shouldRefresh === 'true') {
+                sessionStorage.removeItem('vehicles-refresh');
+                console.log('Refresh flag detected, refreshing vehicles...');
+                // Delay to ensure navigation is complete
+                setTimeout(() => {
+                    fetchVehicles();
+                }, 500);
+            }
+        };
+        
+        loadVehicles();
+        
+        // Listen for custom refresh event
+        const handleRefresh = () => {
+            console.log('Custom refresh event triggered');
+            fetchVehicles();
+        };
+        
+        window.addEventListener('vehicles-refresh', handleRefresh);
+        
+        // Also refresh when page becomes visible (user navigates back)
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                console.log('Page visible, refreshing vehicles');
+                fetchVehicles();
+            }
+        };
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        // Refresh on focus (when user switches back to tab)
+        const handleFocus = () => {
+            console.log('Window focused, refreshing vehicles');
+            fetchVehicles();
+        };
+        
+        window.addEventListener('focus', handleFocus);
+        
+        return () => {
+            window.removeEventListener('vehicles-refresh', handleRefresh);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [pathname]); // Re-run when pathname changes
 
     const handleAddVehicle = () => {
         router.push('/Dashboard/vehicles/add');
     };
 
     const handleEditVehicle = (id: number) => {
-        // Backend Integration: Navigate to edit page
-        // router.push(`/Dashboard/vehicles/${id}/edit`);
-        alert(`Edit vehicle ${id} - Coming soon`);
+        router.push(`/Dashboard/vehicles/${id}/edit`);
     };
 
-    const handleDeleteVehicle = (id: number) => {
-        // Backend Integration: Call DELETE /api/vehicles/{id}
-        if (confirm('Are you sure you want to delete this vehicle?')) {
-            alert(`Delete vehicle ${id} - Backend integration needed`);
+    const handleDeleteVehicle = async (id: number) => {
+        if (!confirm('Are you sure you want to delete this vehicle?')) {
+            return;
+        }
+
+        try {
+            await customerApi.delete(`/api/vehicles/${id}`);
+            
+            // Refresh vehicles list from server
+            if (customerId) {
+                const response = await customerApi.get(`/api/vehicles/customer/${customerId}`);
+                const vehiclesData = response.data || [];
+                // Ensure vehiclesData is an array
+                if (Array.isArray(vehiclesData)) {
+                    setVehicles(vehiclesData);
+                } else {
+                    console.warn('Vehicles response is not an array:', vehiclesData);
+                    setVehicles([]);
+                }
+            } else {
+                // Fallback: remove from local state (only if vehicles is an array)
+                if (Array.isArray(vehicles)) {
+                    setVehicles(vehicles.filter(v => v.id !== id));
+                } else {
+                    // If not an array, refetch
+                    await fetchVehicles();
+                }
+            }
+            
+            alert('Vehicle deleted successfully');
+        } catch (error: any) {
+            console.error('Error deleting vehicle:', error);
+            alert(error.response?.data?.message || 'Failed to delete vehicle. Please try again.');
         }
     };
 
@@ -137,19 +196,29 @@ export default function VehiclesPage() {
                 </div>
 
                 {/* Stats */}
-                <VehicleStats
-                    totalVehicles={vehicles.length}
-                    activeVehicles={vehicles.filter(v => v.isDefault).length}
-                    defaultPlate={vehicles.find(v => v.isDefault)?.plate || "None"}
-                />
+                {loading ? (
+                    <div className="text-gray-400 text-center py-8">Loading vehicle stats...</div>
+                ) : Array.isArray(vehicles) ? (
+                    <VehicleStats
+                        totalVehicles={vehicles.length}
+                        activeVehicles={vehicles.filter(v => v.isDefault).length}
+                        defaultPlate={vehicles.find(v => v.isDefault)?.plate || "None"}
+                    />
+                ) : (
+                    <div className="text-gray-400 text-center py-8">No vehicle data available</div>
+                )}
 
                 {/* Vehicle List */}
-                <VehicleList
-                    vehicles={vehicles}
-                    onAddVehicle={handleAddVehicle}
-                    onEditVehicle={handleEditVehicle}
-                    onDeleteVehicle={handleDeleteVehicle}
-                />
+                {loading ? (
+                    <div className="text-gray-400 text-center py-8">Loading vehicles...</div>
+                ) : (
+                    <VehicleList
+                        vehicles={Array.isArray(vehicles) ? vehicles : []}
+                        onAddVehicle={handleAddVehicle}
+                        onEditVehicle={handleEditVehicle}
+                        onDeleteVehicle={handleDeleteVehicle}
+                    />
+                )}
             </div>
         </div>
     );

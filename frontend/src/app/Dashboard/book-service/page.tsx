@@ -1,35 +1,69 @@
 "use client"
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { defaultServices, formatDuration } from "@/lib/services";
-
-// Backend Integration: GET /api/services
+import customerApi from "@/app/api/customerApi";
 
 export default function BookServicePage() {
     const router = useRouter();
     const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
     const [selectedService, setSelectedService] = useState<any>(null);
     const [customRequest, setCustomRequest] = useState('');
-    
-    // Mock Data - Replace with backend API calls
-    const [vehicles] = useState([
-        { id: 1, make: "Toyota", model: "Camry", year: "2021", plate: "ABC-1234" },
-        { id: 2, make: "Honda", model: "Civic", year: "2020", plate: "XYZ-5678" }
-    ]);
+    const [vehicles, setVehicles] = useState<any[]>([]);
+    const [services, setServices] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [customerId, setCustomerId] = useState<number | null>(null);
 
-    const services = useMemo(() =>
-        defaultServices
-            .filter(s => s.active)
-            .map(s => ({
-                id: s.id,
-                name: s.name,
-                description: s.description,
-                duration: formatDuration(s.estimateMins),
-                price: `$${s.cost.toFixed(2)}`,
-                category: s.category || ""
-            })),
-    []);
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                setLoading(true);
+                
+                // Get user profile to extract customerId
+                const userResponse = await customerApi.get('/api/users/me');
+                const userId = userResponse.data.id;
+                setCustomerId(userId);
+
+                // Fetch vehicles
+                if (userId) {
+                    const vehiclesResponse = await customerApi.get(`/api/vehicles/customer/${userId}`);
+                    const vehiclesData = vehiclesResponse.data || [];
+                    // Ensure vehiclesData is an array
+                    if (Array.isArray(vehiclesData)) {
+                        setVehicles(vehiclesData);
+                    } else {
+                        console.warn('Vehicles response is not an array:', vehiclesData);
+                        setVehicles([]);
+                    }
+                }
+
+                // Fetch services
+                const servicesResponse = await customerApi.get('/services/all');
+                const servicesData = servicesResponse.data || [];
+                // Ensure servicesData is an array before mapping
+                if (Array.isArray(servicesData)) {
+                    setServices(servicesData.map((s: any) => ({
+                        id: s.id,
+                        name: s.name,
+                        description: s.description || '',
+                        duration: s.estimatedDuration ? `${s.estimatedDuration} min` : 'N/A',
+                        price: s.price ? `$${s.price.toFixed(2)}` : 'N/A',
+                        category: s.category || '',
+                        estimatedDuration: s.estimatedDuration
+                    })));
+                } else {
+                    console.warn('Services response is not an array:', servicesData);
+                    setServices([]);
+                }
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, []);
 
     const handleContinue = () => {
         if (!selectedVehicle || !selectedService) {
@@ -84,8 +118,11 @@ export default function BookServicePage() {
                         {/* Vehicle Selection */}
                         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
                             <h2 className="text-xl font-bold text-white mb-4">Select Vehicle</h2>
-                            <div className="space-y-3">
-                                {vehicles.map((vehicle) => (
+                            {loading ? (
+                                <div className="text-gray-400 text-center py-8">Loading vehicles...</div>
+                            ) : vehicles.length > 0 ? (
+                                <div className="space-y-3">
+                                    {vehicles.map((vehicle) => (
                                     <button
                                         key={vehicle.id}
                                         onClick={() => setSelectedVehicle(vehicle)}
@@ -109,14 +146,25 @@ export default function BookServicePage() {
                                         )}
                                     </button>
                                 ))}
-                            </div>
+                                </div>
+                            ) : (
+                                <div className="text-gray-400 text-center py-8">
+                                    <p>No vehicles registered</p>
+                                    <a href="/Dashboard/vehicles" className="text-cyan-400 hover:text-cyan-300 mt-2 inline-block">
+                                        Add a vehicle →
+                                    </a>
+                                </div>
+                            )}
                         </div>
 
                         {/* Service Selection */}
                         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
                             <h2 className="text-xl font-bold text-white mb-4">Select Service</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {services.map((service) => (
+                            {loading ? (
+                                <div className="text-gray-400 text-center py-8">Loading services...</div>
+                            ) : services.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {services.map((service) => (
                                     <button
                                         key={service.id}
                                         onClick={() => setSelectedService(service)}
@@ -142,7 +190,10 @@ export default function BookServicePage() {
                                         </div>
                                     </button>
                                 ))}
-                            </div>
+                                </div>
+                            ) : (
+                                <div className="text-gray-400 text-center py-8">No services available</div>
+                            )}
                         </div>
 
                         {/* Custom Request (Optional) */}
@@ -216,6 +267,7 @@ export default function BookServicePage() {
         </div>
     );
 }
+
 
 
 

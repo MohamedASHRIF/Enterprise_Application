@@ -120,3 +120,4 @@ function VehicleCard({ vehicle, onEdit, onDelete }: { vehicle: Vehicle; onEdit: 
 
 
 
+

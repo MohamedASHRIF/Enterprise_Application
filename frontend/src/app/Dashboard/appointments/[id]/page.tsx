@@ -2,52 +2,49 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
-
-// Backend Integration: GET /api/appointments/{id}
+import customerApi from "@/app/api/customerApi";
 
 export default function AppointmentDetailsPage() {
     const router = useRouter();
     const params = useParams();
     const appointmentId = params.id as string;
-    
-    // Mock Data - Replace with backend API call
-    const [appointment] = useState({
-        id: "APT-001",
-        vehicle: {
-            id: 1,
-            make: "Toyota",
-            model: "Camry",
-            year: "2021",
-            plate: "ABC-1234",
-            color: "Silver"
-        },
-        service: {
-            id: 1,
-            name: "Oil Change",
-            description: "Standard oil and filter change",
-            duration: "30 min",
-            price: "$29.99"
-        },
-        date: "2024-12-20",
-        time: "10:00 AM",
-        status: "SCHEDULED",
-        employee: {
-            id: 1,
-            name: "Mike Johnson",
-            phone: "+1 (555) 123-4567",
-            email: "mike.johnson@autoflow.com"
-        },
-        notes: [
-            "Customer requested synthetic oil",
-            "Check tire pressure",
-            "Window already open - no need to unlock"
-        ],
-        estimatedDuration: "30 min",
-        actualDuration: null,
-        totalCost: 29.99,
-        createdAt: "2024-12-10T08:00:00",
-        updatedAt: "2024-12-10T08:00:00"
-    });
+    const [appointment, setAppointment] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchAppointment = async () => {
+            try {
+                setLoading(true);
+                const response = await customerApi.get(`/api/appointments/${appointmentId}`);
+                const apt = response.data;
+                
+                // Transform appointment data for display
+                setAppointment({
+                    id: apt.id?.toString() || appointmentId,
+                    vehicle: apt.vehicle || { make: '', model: '', year: '', plate: '', color: '' },
+                    service: apt.service || { name: '', description: '', duration: '', price: '' },
+                    date: apt.appointmentDate || apt.date || '',
+                    time: apt.appointmentTime || apt.time || '',
+                    status: apt.status || 'SCHEDULED',
+                    employee: apt.employee || { name: 'TBD', phone: '', email: '' },
+                    notes: apt.notes || [],
+                    estimatedDuration: apt.estimatedDuration || 'N/A',
+                    actualDuration: apt.actualDuration,
+                    totalCost: apt.totalCost || 0,
+                    createdAt: apt.createdAt || '',
+                    updatedAt: apt.updatedAt || ''
+                });
+            } catch (error) {
+                console.error('Error fetching appointment:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (appointmentId) {
+            fetchAppointment();
+        }
+    }, [appointmentId]);
 
     const getStatusInfo = (status: string) => {
         const statusConfig: { [key: string]: { color: string; text: string; icon: string; description: string } } = {
@@ -98,12 +95,42 @@ export default function AppointmentDetailsPage() {
         return date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     };
 
-    const handleCancel = () => {
-        // Backend Integration: PATCH /api/appointments/{id}/cancel
-        if (confirm('Are you sure you want to cancel this appointment?')) {
-            alert(`Cancelling appointment ${appointmentId} - Backend integration needed`);
+    const handleCancel = async () => {
+        if (!confirm('Are you sure you want to cancel this appointment?')) {
+            return;
+        }
+
+        try {
+            await customerApi.put(`/api/appointments/${appointmentId}/status?status=CANCELLED`);
+            alert('Appointment cancelled successfully');
+            router.push('/Dashboard/appointments');
+        } catch (error: any) {
+            console.error('Error cancelling appointment:', error);
+            alert(error.response?.data?.message || 'Failed to cancel appointment. Please try again.');
         }
     };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gray-950">
+                <Navbar />
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="text-gray-400 text-center py-12">Loading appointment details...</div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!appointment) {
+        return (
+            <div className="min-h-screen bg-gray-950">
+                <Navbar />
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="text-gray-400 text-center py-12">Appointment not found</div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-950">
@@ -274,6 +301,7 @@ export default function AppointmentDetailsPage() {
         </div>
     );
 }
+
 
 
 

@@ -1,95 +1,65 @@
 "use client"
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-
-// Backend Integration: GET /api/appointments
+import customerApi from "@/app/api/customerApi";
 
 export default function AppointmentsPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState('upcoming');
-    
-    // Mock Data - Replace with backend API calls
-    const [appointments] = useState({
-        upcoming: [
-            {
-                id: "APT-001",
-                vehicle: "Toyota Camry",
-                vehicleId: 1,
-                service: "Oil Change",
-                serviceId: 1,
-                date: "2024-12-20",
-                time: "10:00 AM",
-                status: "SCHEDULED",
-                employee: "Mike Johnson",
-                employeeId: 1,
-                estimatedDuration: "30 min",
-                price: "$29.99"
-            },
-            {
-                id: "APT-002",
-                vehicle: "Honda Civic",
-                vehicleId: 2,
-                service: "Tire Rotation",
-                serviceId: 2,
-                date: "2024-12-22",
-                time: "2:00 PM",
-                status: "SCHEDULED",
-                employee: "Sarah Williams",
-                employeeId: 2,
-                estimatedDuration: "15 min",
-                price: "$19.99"
-            }
-        ],
-        inProgress: [
-            {
-                id: "APT-003",
-                vehicle: "Tesla Model 3",
-                vehicleId: 3,
-                service: "Brake Inspection",
-                serviceId: 3,
-                date: "2024-12-18",
-                time: "11:00 AM",
-                status: "IN_PROGRESS",
-                employee: "John Smith",
-                employeeId: 3,
-                estimatedDuration: "45 min",
-                price: "$49.99"
-            }
-        ],
-        completed: [
-            {
-                id: "APT-004",
-                vehicle: "Ford F-150",
-                vehicleId: 4,
-                service: "Full Service",
-                serviceId: 5,
-                date: "2024-12-10",
-                time: "9:00 AM",
-                status: "COMPLETED",
-                employee: "Mike Johnson",
-                employeeId: 1,
-                completedAt: "2024-12-10T13:00:00",
-                price: "$199.99",
-                rating: 5
-            },
-            {
-                id: "APT-005",
-                vehicle: "BMW 3 Series",
-                vehicleId: 5,
-                service: "AC Service",
-                serviceId: 6,
-                date: "2024-12-05",
-                time: "10:30 AM",
-                status: "COMPLETED",
-                employee: "Sarah Williams",
-                employeeId: 2,
-                completedAt: "2024-12-05T12:00:00",
-                price: "$79.99",
-                rating: 4
-            }
-        ]
+    const [loading, setLoading] = useState(true);
+    const [appointments, setAppointments] = useState({
+        upcoming: [] as any[],
+        inProgress: [] as any[],
+        completed: [] as any[]
     });
+
+    useEffect(() => {
+        const fetchAppointments = async () => {
+            try {
+                setLoading(true);
+                const response = await customerApi.get('/api/appointments/my');
+                const allAppointments = response.data || [];
+                
+                // Categorize appointments by status
+                const categorized = {
+                    upcoming: allAppointments.filter((apt: any) => apt.status === 'SCHEDULED'),
+                    inProgress: allAppointments.filter((apt: any) => apt.status === 'IN_PROGRESS'),
+                    completed: allAppointments.filter((apt: any) => apt.status === 'COMPLETED')
+                };
+                
+                // Transform data for display
+                const transformAppointment = (apt: any) => ({
+                    id: apt.id?.toString() || `APT-${apt.id}`,
+                    vehicle: `${apt.vehicle?.make || ''} ${apt.vehicle?.model || ''}`.trim() || 'Unknown Vehicle',
+                    vehicleId: apt.vehicleId || apt.vehicle?.id,
+                    service: apt.service?.name || 'Service',
+                    serviceId: apt.serviceId || apt.service?.id,
+                    date: apt.appointmentDate || apt.date || '',
+                    time: apt.appointmentTime || apt.time || '',
+                    status: apt.status || 'SCHEDULED',
+                    employee: apt.employee?.name || 'TBD',
+                    employeeId: apt.employeeId || apt.employee?.id,
+                    estimatedDuration: apt.estimatedDuration ? `${apt.estimatedDuration} min` : 'N/A',
+                    price: apt.totalCost ? `$${apt.totalCost.toFixed(2)}` : 'N/A',
+                    completedAt: apt.updatedAt || apt.completedAt,
+                    rating: apt.rating
+                });
+
+                setAppointments({
+                    upcoming: categorized.upcoming.map(transformAppointment),
+                    inProgress: categorized.inProgress.map(transformAppointment),
+                    completed: categorized.completed.map(transformAppointment)
+                });
+            } catch (error) {
+                console.error('Error fetching appointments:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchAppointments();
+    }, []);
 
     const getStatusBadge = (status: string) => {
         const statusConfig: { [key: string]: { color: string; text: string; icon: string } } = {
@@ -114,10 +84,50 @@ export default function AppointmentsPage() {
         router.push(`/Dashboard/appointments/${id}`);
     };
 
-    const handleCancelAppointment = (id: string) => {
-        // Backend Integration: PATCH /api/appointments/{id}/cancel
-        if (confirm('Are you sure you want to cancel this appointment?')) {
-            alert(`Cancel appointment ${id} - Backend integration needed`);
+    const handleCancelAppointment = async (id: string) => {
+        if (!confirm('Are you sure you want to cancel this appointment?')) {
+            return;
+        }
+
+        try {
+            await customerApi.put(`/api/appointments/${id}/status?status=CANCELLED`);
+            // Refresh appointments
+            const response = await customerApi.get('/api/appointments/my');
+            const allAppointments = response.data || [];
+            
+            const categorized = {
+                upcoming: allAppointments.filter((apt: any) => apt.status === 'SCHEDULED'),
+                inProgress: allAppointments.filter((apt: any) => apt.status === 'IN_PROGRESS'),
+                completed: allAppointments.filter((apt: any) => apt.status === 'COMPLETED')
+            };
+            
+            const transformAppointment = (apt: any) => ({
+                id: apt.id?.toString() || `APT-${apt.id}`,
+                vehicle: `${apt.vehicle?.make || ''} ${apt.vehicle?.model || ''}`.trim() || 'Unknown Vehicle',
+                vehicleId: apt.vehicleId || apt.vehicle?.id,
+                service: apt.service?.name || 'Service',
+                serviceId: apt.serviceId || apt.service?.id,
+                date: apt.appointmentDate || apt.date || '',
+                time: apt.appointmentTime || apt.time || '',
+                status: apt.status || 'SCHEDULED',
+                employee: apt.employee?.name || 'TBD',
+                employeeId: apt.employeeId || apt.employee?.id,
+                estimatedDuration: apt.estimatedDuration ? `${apt.estimatedDuration} min` : 'N/A',
+                price: apt.totalCost ? `$${apt.totalCost.toFixed(2)}` : 'N/A',
+                completedAt: apt.updatedAt || apt.completedAt,
+                rating: apt.rating
+            });
+
+            setAppointments({
+                upcoming: categorized.upcoming.map(transformAppointment),
+                inProgress: categorized.inProgress.map(transformAppointment),
+                completed: categorized.completed.map(transformAppointment)
+            });
+            
+            alert('Appointment cancelled successfully');
+        } catch (error: any) {
+            console.error('Error cancelling appointment:', error);
+            alert(error.response?.data?.message || 'Failed to cancel appointment. Please try again.');
         }
     };
 
@@ -181,7 +191,11 @@ export default function AppointmentsPage() {
                 </div>
 
                 {/* Appointments List */}
-                {displayAppointments.length > 0 ? (
+                {loading ? (
+                    <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
+                        <div className="text-gray-400">Loading appointments...</div>
+                    </div>
+                ) : displayAppointments.length > 0 ? (
                     <div className="space-y-4">
                         {displayAppointments.map((apt) => (
                             <div
@@ -290,6 +304,7 @@ export default function AppointmentsPage() {
         </div>
     );
 }
+
 
 
 

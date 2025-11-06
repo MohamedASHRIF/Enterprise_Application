@@ -2,9 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import api from "@/app/api/api";
-
-// Backend Integration: POST /api/appointments
+import customerApi from "@/app/api/customerApi";
 
 export default function ConfirmBookingPage() {
     const router = useRouter();
@@ -21,30 +19,57 @@ export default function ConfirmBookingPage() {
     }, [router]);
 
     const handleConfirm = async () => {
+        if (!bookingData) {
+            alert('Booking data is missing. Please start over.');
+            router.push('/Dashboard/book-service');
+            return;
+        }
+
         setIsLoading(true);
         
         try {
-            // Backend Integration: POST /api/appointments
-            // const res = await api.post('/appointments', {
-            //     vehicleId: bookingData.vehicle.id,
-            //     serviceId: bookingData.service.id,
-            //     date: bookingData.date,
-            //     time: bookingData.time,
-            //     customRequest: bookingData.customRequest
-            // });
+            // Prepare appointment data for backend
+            const appointmentData = {
+                vehicleId: bookingData.vehicle.id,
+                serviceId: bookingData.service.id,
+                appointmentDate: bookingData.date, // Format: YYYY-MM-DD (will be converted to LocalDate)
+                appointmentTime: bookingData.time, // Format: HH:mm (String)
+                notes: bookingData.customRequest ? [bookingData.customRequest] : []
+            };
+
+            // Book appointment via backend API
+            const response = await customerApi.post('/api/appointments/book', appointmentData);
             
-            // Mock success
-            console.log('Booking confirmed:', bookingData);
-            alert('Appointment booked successfully!');
+            console.log('Appointment booked successfully:', response.data);
             
             // Clear session storage
             sessionStorage.removeItem('bookingData');
             
-            // Redirect to appointments page
+            // Show success message
+            alert('Appointment booked successfully!');
+            
+            // Redirect to appointments page to see the new booking
             router.push('/Dashboard/appointments');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error booking appointment:', error);
-            alert('Failed to book appointment. Please try again.');
+            console.error('Error response:', error.response?.data);
+            
+            // Extract detailed error message
+            let errorMessage = 'Failed to book appointment. Please try again.';
+            if (error.response?.data) {
+                const errorData = error.response.data;
+                if (typeof errorData === 'string') {
+                    errorMessage = errorData;
+                } else if (errorData.message) {
+                    errorMessage = errorData.message;
+                } else if (errorData.error) {
+                    errorMessage = errorData.error;
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
+            alert(`Error: ${errorMessage}`);
         } finally {
             setIsLoading(false);
         }
@@ -182,6 +207,7 @@ export default function ConfirmBookingPage() {
         </div>
     );
 }
+
 
 
 

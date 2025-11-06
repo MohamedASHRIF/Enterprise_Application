@@ -78,6 +78,7 @@ package com.enterprise.authentication.controller;
 
 import com.enterprise.authentication.entity.User;
 import com.enterprise.authentication.service.AuthenticationService;
+import com.enterprise.authentication.service.UserService;
 import com.enterprise.authentication.util.JwtUtil;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -89,17 +90,19 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
     private final AuthenticationService authenticationService;
     private final JwtUtil jwtUtil;
+    private final UserService userService;
 
     @Autowired
-    public AuthController(AuthenticationService authenticationService, JwtUtil jwtUtil) {
+    public AuthController(AuthenticationService authenticationService, JwtUtil jwtUtil, UserService userService) {
         this.authenticationService = authenticationService;
         this.jwtUtil = jwtUtil;
+        this.userService = userService;
     }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody User user) {
         User savedUser = authenticationService.registerUser(user);
-        String token = jwtUtil.generateToken(savedUser.getEmail());
+        String token = jwtUtil.generateToken(savedUser.getEmail(), savedUser.getId(), savedUser.getRole().toString());
         // Return both token and user data
         return ResponseEntity.ok(Map.of(
             "token", token,
@@ -120,7 +123,7 @@ public class AuthController {
         String password = loginRequest.get("password");
         return authenticationService.authenticate(email, password)
                 .map(user -> {
-                    String token = jwtUtil.generateToken(user.getEmail());
+                    String token = jwtUtil.generateToken(user.getEmail(), user.getId(), user.getRole().toString());
                     // Return both token and user data
                     return ResponseEntity.ok(Map.of(
                         "token", token,
@@ -135,5 +138,15 @@ public class AuthController {
                     ));
                 })
                 .orElseGet(() -> ResponseEntity.status(401).body(Map.of("error", "Invalid credentials")));
+    }
+
+    @GetMapping("/user")
+    public ResponseEntity<?> getUserByEmail(@RequestParam String email) {
+        return userService.findByEmail(email)
+                .map(user -> ResponseEntity.ok(Map.of(
+                        "id", user.getId(),
+                        "email", user.getEmail()
+                )))
+                .orElse(ResponseEntity.status(404).body(Map.of("error", "User not found")));
     }
 }

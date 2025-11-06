@@ -1,61 +1,94 @@
 "use client"
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import customerApi from "@/app/api/customerApi";
 
-export default function AddVehiclePage() {
+export default function EditVehiclePage() {
     const router = useRouter();
+    const params = useParams();
+    const vehicleId = params.id as string;
     const [isLoading, setIsLoading] = useState(false);
+    const [loadingVehicle, setLoadingVehicle] = useState(true);
     const [customerId, setCustomerId] = useState<number | null>(null);
     
     const [formData, setFormData] = useState({
+        id: 0,
         make: '',
         model: '',
         year: '',
         plate: '',
         color: '',
-        vin: ''
+        vin: '',
+        customerId: 0
     });
 
     useEffect(() => {
-        const fetchCustomerId = async () => {
+        const fetchData = async () => {
             try {
-                const userResponse = await customerApi.get('/api/users/me');
-                if (userResponse.data?.id) {
-                    setCustomerId(userResponse.data.id);
-                } else {
-                    // Fallback to localStorage if API doesn't return id
+                setLoadingVehicle(true);
+                
+                // Get customerId with fallback
+                let userId: number | null = null;
+                try {
+                    const userResponse = await customerApi.get('/api/users/me');
+                    userId = userResponse.data?.id || null;
+                } catch (error) {
+                    console.error('Error fetching user ID:', error);
+                    // Fallback to localStorage
                     const storedUser = localStorage.getItem('user');
                     if (storedUser) {
                         try {
                             const user = JSON.parse(storedUser);
-                            if (user.id) {
-                                setCustomerId(user.id);
-                            }
+                            userId = user.id || null;
                         } catch (e) {
                             console.error('Error parsing stored user:', e);
                         }
                     }
                 }
-            } catch (error) {
-                console.error('Error fetching user ID:', error);
-                // Fallback to localStorage if API fails
-                const storedUser = localStorage.getItem('user');
-                if (storedUser) {
-                    try {
-                        const user = JSON.parse(storedUser);
-                        if (user.id) {
-                            setCustomerId(user.id);
-                        }
-                    } catch (e) {
-                        console.error('Error parsing stored user:', e);
+                
+                if (!userId) {
+                    alert('Unable to load user information. Please log in again.');
+                    router.push('/Dashboard/vehicles');
+                    return;
+                }
+                
+                setCustomerId(userId);
+
+                // Fetch vehicle data
+                if (vehicleId && userId) {
+                    const vehiclesResponse = await customerApi.get(`/api/vehicles/customer/${userId}`);
+                    const vehicles = vehiclesResponse.data || [];
+                    const vehicle = vehicles.find((v: any) => v.id.toString() === vehicleId);
+                    
+                    if (vehicle) {
+                        console.log('Loaded vehicle data:', vehicle);
+                        setFormData({
+                            id: vehicle.id,
+                            make: vehicle.make || '',
+                            model: vehicle.model || '',
+                            year: vehicle.year?.toString() || '',
+                            plate: vehicle.plate || '',
+                            color: vehicle.color || '',
+                            vin: vehicle.VIN || vehicle.vin || '', // Handle both VIN and vin
+                            customerId: vehicle.customerId || userId
+                        });
+                    } else {
+                        alert('Vehicle not found');
+                        router.push('/Dashboard/vehicles');
                     }
                 }
+            } catch (error) {
+                console.error('Error fetching vehicle data:', error);
+                alert('Failed to load vehicle data');
+                router.push('/Dashboard/vehicles');
+            } finally {
+                setLoadingVehicle(false);
             }
         };
-        fetchCustomerId();
-    }, []);
+
+        fetchData();
+    }, [vehicleId, router]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -71,7 +104,7 @@ export default function AddVehiclePage() {
         e.preventDefault();
         
         if (!customerId) {
-            alert('Unable to add vehicle. Please refresh the page.');
+            alert('Unable to update vehicle. Please refresh the page.');
             return;
         }
 
@@ -79,15 +112,15 @@ export default function AddVehiclePage() {
 
         try {
             // Prepare vehicle data matching backend entity structure
-            const vinValue = formData.vin.trim().toUpperCase();
             const vehicleData = {
+                id: formData.id,
                 customerId: customerId,
                 make: formData.make.trim(),
                 model: formData.model.trim(),
                 year: parseInt(formData.year) || 0, // Convert to integer for backend
-                plate: formData.plate.trim().toUpperCase(), // Normalize plate
-                color: formData.color.trim() || null,
-                VIN: vinValue || null // Backend uses uppercase VIN, send null if empty
+                plate: formData.plate.trim(),
+                color: formData.color.trim() || '',
+                VIN: formData.vin.trim() || '' // Backend uses uppercase VIN
             };
 
             // Validate required fields
@@ -97,21 +130,10 @@ export default function AddVehiclePage() {
                 return;
             }
 
-            // Validate VIN if provided (should be 17 characters, but allow empty)
-            if (vehicleData.VIN && vehicleData.VIN.length > 0 && vehicleData.VIN.length !== 17) {
-                alert('VIN must be exactly 17 characters if provided.');
-                setIsLoading(false);
-                return;
-            }
+            console.log('Sending update request:', vehicleData);
             
-            // If VIN is empty string, convert to null
-            if (vehicleData.VIN === '') {
-                vehicleData.VIN = null;
-            }
-
-            console.log('Sending vehicle data:', vehicleData);
-            const response = await customerApi.post('/api/vehicles', vehicleData);
-            console.log('Vehicle added successfully:', response.data);
+            const response = await customerApi.put('/api/vehicles', vehicleData);
+            console.log('Vehicle updated successfully:', response.data);
             
             // Set flag to refresh vehicles list (do this first)
             sessionStorage.setItem('vehicles-refresh', 'true');
@@ -119,41 +141,38 @@ export default function AddVehiclePage() {
             // Dispatch custom event for refresh (for any open pages)
             window.dispatchEvent(new Event('vehicles-refresh'));
             
-            alert('Vehicle added successfully!');
+            alert('Vehicle updated successfully!');
             
             // Small delay to ensure state is set before navigation
             setTimeout(() => {
-                // Navigate back to vehicles list
                 router.push('/Dashboard/vehicles');
                 // Force a refresh after navigation
                 router.refresh();
             }, 100);
         } catch (error: any) {
-            console.error('Error adding vehicle:', error);
+            console.error('Error updating vehicle:', error);
             console.error('Error response:', error.response?.data);
-            
-            // Extract detailed error message
-            let errorMessage = 'Failed to add vehicle. Please try again.';
-            if (error.response?.data) {
-                const errorData = error.response.data;
-                if (errorData.message) {
-                    errorMessage = errorData.message;
-                } else if (errorData.error) {
-                    errorMessage = errorData.error;
-                } else if (typeof errorData === 'string') {
-                    errorMessage = errorData;
-                } else if (errorData.details) {
-                    errorMessage = errorData.details;
-                }
-            } else if (error.message) {
-                errorMessage = error.message;
-            }
-            
+            console.error('Error status:', error.response?.status);
+            const errorMessage = error.response?.data?.message || 
+                               error.response?.data?.error || 
+                               error.message || 
+                               'Failed to update vehicle. Please try again.';
             alert(`Error: ${errorMessage}`);
         } finally {
             setIsLoading(false);
         }
     };
+
+    if (loadingVehicle) {
+        return (
+            <div className="min-h-screen bg-gray-950">
+                <Navbar />
+                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="text-gray-400 text-center py-12">Loading vehicle data...</div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-950">
@@ -172,8 +191,8 @@ export default function AddVehiclePage() {
                         Back
                     </button>
                     
-                    <h1 className="text-3xl font-bold text-white mb-2">Add New Vehicle</h1>
-                    <p className="text-gray-400">Enter your vehicle details to register</p>
+                    <h1 className="text-3xl font-bold text-white mb-2">Edit Vehicle</h1>
+                    <p className="text-gray-400">Update your vehicle details</p>
                 </div>
 
                 {/* Form Card */}
@@ -292,7 +311,7 @@ export default function AddVehiclePage() {
                                 disabled={isLoading}
                                 className="flex-1 px-6 py-3.5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-xl transition shadow-lg hover:shadow-xl disabled:opacity-50"
                             >
-                                {isLoading ? 'Adding...' : 'Add Vehicle'}
+                                {isLoading ? 'Updating...' : 'Update Vehicle'}
                             </button>
                         </div>
                     </form>

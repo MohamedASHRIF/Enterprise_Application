@@ -2,8 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-
-// Backend Integration: GET /api/slots/available?date=YYYY-MM-DD
+import customerApi from "@/app/api/customerApi";
 
 export default function TimeSlotPage() {
     const router = useRouter();
@@ -25,17 +24,40 @@ export default function TimeSlotPage() {
         setSelectedDate(today);
     }, [router]);
 
-    // Mock Time Slots - Replace with backend API
-    const timeSlots = [
-        { time: "09:00", available: true },
-        { time: "10:00", available: false },
-        { time: "11:00", available: true },
-        { time: "12:00", available: true },
-        { time: "13:00", available: false },
-        { time: "14:00", available: true },
-        { time: "15:00", available: true },
-        { time: "16:00", available: true },
-    ];
+    const [timeSlots, setTimeSlots] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        const fetchTimeSlots = async () => {
+            if (!selectedDate) return;
+            
+            try {
+                setLoading(true);
+                // TODO: Replace with actual API endpoint when available
+                // const response = await customerApi.get(`/api/slots/available?date=${selectedDate}`);
+                // setTimeSlots(response.data.slots || []);
+                
+                // Default time slots (9 AM to 5 PM)
+                const defaultSlots = [
+                    "09:00", "10:00", "11:00", "12:00", 
+                    "13:00", "14:00", "15:00", "16:00"
+                ].map(time => ({ time, available: true }));
+                setTimeSlots(defaultSlots);
+            } catch (error) {
+                console.error('Error fetching time slots:', error);
+                // Fallback to default slots
+                const defaultSlots = [
+                    "09:00", "10:00", "11:00", "12:00", 
+                    "13:00", "14:00", "15:00", "16:00"
+                ].map(time => ({ time, available: true }));
+                setTimeSlots(defaultSlots);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchTimeSlots();
+    }, [selectedDate]);
 
     const handleContinue = () => {
         if (!selectedDate || !selectedTime) {
@@ -127,8 +149,11 @@ export default function TimeSlotPage() {
                         {/* Time Slots */}
                         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
                             <h2 className="text-xl font-bold text-white mb-4">Available Time Slots</h2>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                {timeSlots.map((slot) => (
+                            {loading ? (
+                                <div className="text-gray-400 text-center py-8">Loading time slots...</div>
+                            ) : timeSlots.length > 0 ? (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    {timeSlots.map((slot) => (
                                     <button
                                         key={slot.time}
                                         onClick={() => slot.available && setSelectedTime(slot.time)}
@@ -147,7 +172,10 @@ export default function TimeSlotPage() {
                                         )}
                                     </button>
                                 ))}
-                            </div>
+                                </div>
+                            ) : (
+                                <div className="text-gray-400 text-center py-8">No time slots available for this date</div>
+                            )}
                         </div>
                     </div>
 
@@ -214,6 +242,7 @@ export default function TimeSlotPage() {
         </div>
     );
 }
+
 
 
 

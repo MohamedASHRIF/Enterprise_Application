@@ -12,7 +12,7 @@ import java.util.List;
 public class ServiceController {
 
 
-    private ServiceService serviceService;
+    private final ServiceService serviceService;
 
     @GetMapping("/all")
     public List<org.example.customer_service.entities.Service> getAllServices() {

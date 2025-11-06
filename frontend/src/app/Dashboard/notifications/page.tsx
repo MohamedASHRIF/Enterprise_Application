@@ -2,123 +2,35 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-
-// Backend Integration: 
-// GET /api/notifications
-// PATCH /api/notifications/{id}/read
-// PATCH /api/notifications/mark-all-read
-// DELETE /api/notifications/{id}
+import customerApi from "@/app/api/customerApi";
 
 export default function NotificationsPage() {
     const router = useRouter();
     const [filter, setFilter] = useState('all');
     const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-    
-    // Mock Data - Replace with backend API calls
-    const [notifications, setNotifications] = useState([
-        {
-            id: "NTF-001",
-            type: "APPOINTMENT_UPDATE",
-            title: "Service Started",
-            message: "Your Toyota Camry oil change service has started. Mike Johnson is working on your vehicle.",
-            time: "2024-12-18T11:15:00",
-            isRead: false,
-            appointmentId: "APT-003",
-            link: "/Dashboard/appointments/APT-003"
-        },
-        {
-            id: "NTF-002",
-            type: "APPOINTMENT_COMPLETED",
-            title: "Service Completed",
-            message: "Your Ford F-150 full service has been completed. Ready for pickup!",
-            time: "2024-12-10T13:45:00",
-            isRead: false,
-            appointmentId: "APT-004",
-            link: "/Dashboard/appointments/APT-004"
-        },
-        {
-            id: "NTF-003",
-            type: "APPOINTMENT_REMINDER",
-            title: "Appointment Reminder",
-            message: "You have an appointment tomorrow at 10:00 AM for your Toyota Camry.",
-            time: "2024-12-19T08:00:00",
-            isRead: true,
-            appointmentId: "APT-001",
-            link: "/Dashboard/appointments/APT-001"
-        },
-        {
-            id: "NTF-004",
-            type: "FEEDBACK_REQUEST",
-            title: "Share Your Experience",
-            message: "How was your recent service with Mike Johnson? Please rate and provide feedback.",
-            time: "2024-12-10T14:00:00",
-            isRead: true,
-            appointmentId: "APT-004",
-            link: "/Dashboard/appointments/APT-004/feedback"
-        },
-        {
-            id: "NTF-005",
-            type: "APPOINTMENT_UPDATE",
-            title: "Parts Arrived",
-            message: "The parts for your Tesla Model 3 brake inspection have arrived. Service will resume shortly.",
-            time: "2024-12-18T12:30:00",
-            isRead: true,
-            appointmentId: "APT-003",
-            link: "/Dashboard/appointments/APT-003"
-        },
-        {
-            id: "NTF-006",
-            type: "APPOINTMENT_CANCELLED",
-            title: "Appointment Cancelled",
-            message: "Your Honda Civic tire rotation has been cancelled. Please book a new appointment.",
-            time: "2024-12-15T09:00:00",
-            isRead: true,
-            appointmentId: "APT-006",
-            link: null
-        },
-        {
-            id: "NTF-007",
-            type: "APPOINTMENT_SCHEDULED",
-            title: "Appointment Confirmed",
-            message: "Your Honda Civic tire rotation has been scheduled for December 22 at 2:00 PM.",
-            time: "2024-12-10T10:00:00",
-            isRead: true,
-            appointmentId: "APT-002",
-            link: "/Dashboard/appointments/APT-002"
-        },
-        {
-            id: "NTF-008",
-            type: "SYSTEM_UPDATE",
-            title: "New Services Available",
-            message: "We've added new premium services! Check them out in our booking section.",
-            time: "2024-12-08T12:00:00",
-            isRead: true,
-            link: "/Dashboard/book-service"
-        },
-        {
-            id: "NTF-009",
-            type: "EMPLOYEE_ASSIGNED",
-            title: "Technician Assigned",
-            message: "Sarah Williams has been assigned to your Honda Civic tire rotation appointment.",
-            time: "2024-12-10T10:15:00",
-            isRead: true,
-            appointmentId: "APT-002",
-            link: "/Dashboard/appointments/APT-002"
-        }
-    ]);
+    const [notifications, setNotifications] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    // Real-time Updates Simulation
-    // Backend Integration: Implement WebSocket or Polling
-    // WebSocket: ws://localhost:8081/api/notifications/live
-    // Polling: setInterval(() => fetchNotifications(), 30000) // Every 30 seconds
-    
     useEffect(() => {
-        const interval = setInterval(() => {
-            // Simulated real-time update
-            console.log("Checking for new notifications...");
-            // Backend Integration: Poll or listen to WebSocket
-        }, 30000);
+        const fetchNotifications = async () => {
+            try {
+                setLoading(true);
+                // TODO: Replace with actual notification API endpoint when available
+                // const response = await customerApi.get('/api/notifications');
+                // setNotifications(response.data || []);
+                setNotifications([]);
+            } catch (error) {
+                console.error('Error fetching notifications:', error);
+                setNotifications([]);
+            } finally {
+                setLoading(false);
+            }
+        };
 
+        fetchNotifications();
+        
+        // Poll every 30 seconds for new notifications
+        const interval = setInterval(fetchNotifications, 30000);
         return () => clearInterval(interval);
     }, []);
 
@@ -153,22 +65,39 @@ export default function NotificationsPage() {
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     };
 
-    const handleMarkAsRead = (id: string) => {
-        // Backend Integration: PATCH /api/notifications/{id}/read
-        setNotifications(prev => prev.map(n => 
-            n.id === id ? { ...n, isRead: true } : n
-        ));
+    const handleMarkAsRead = async (id: string) => {
+        try {
+            // TODO: Replace with actual API endpoint when available
+            // await customerApi.patch(`/api/notifications/${id}/read`);
+            setNotifications(prev => prev.map(n => 
+                n.id === id ? { ...n, isRead: true } : n
+            ));
+        } catch (error) {
+            console.error('Error marking notification as read:', error);
+        }
     };
 
-    const handleMarkAllRead = () => {
-        // Backend Integration: PATCH /api/notifications/mark-all-read
-        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    const handleMarkAllRead = async () => {
+        try {
+            // TODO: Replace with actual API endpoint when available
+            // await customerApi.patch('/api/notifications/mark-all-read');
+            setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        } catch (error) {
+            console.error('Error marking all notifications as read:', error);
+        }
     };
 
-    const handleDelete = (id: string) => {
-        // Backend Integration: DELETE /api/notifications/{id}
-        if (confirm('Delete this notification?')) {
+    const handleDelete = async (id: string) => {
+        if (!confirm('Delete this notification?')) {
+            return;
+        }
+        
+        try {
+            // TODO: Replace with actual API endpoint when available
+            // await customerApi.delete(`/api/notifications/${id}`);
             setNotifications(prev => prev.filter(n => n.id !== id));
+        } catch (error) {
+            console.error('Error deleting notification:', error);
         }
     };
 
@@ -253,7 +182,11 @@ export default function NotificationsPage() {
                 </div>
 
                 {/* Notifications List */}
-                {filteredNotifications.length > 0 ? (
+                {loading ? (
+                    <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
+                        <div className="text-gray-400">Loading notifications...</div>
+                    </div>
+                ) : filteredNotifications.length > 0 ? (
                     <div className="space-y-3">
                         {filteredNotifications.map((notification) => {
                             const iconData = getNotificationIcon(notification.type);
@@ -324,6 +257,7 @@ export default function NotificationsPage() {
         </div>
     );
 }
+
 
 
 

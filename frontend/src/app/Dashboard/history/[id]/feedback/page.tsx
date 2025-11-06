@@ -1,11 +1,8 @@
 "use client"
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
-
-// Backend Integration: 
-// GET /api/services/history/{id}
-// POST /api/services/history/{id}/feedback
+import customerApi from "@/app/api/customerApi";
 
 export default function FeedbackPage() {
     const router = useRouter();
@@ -16,16 +13,35 @@ export default function FeedbackPage() {
     const [hover, setHover] = useState(0);
     const [feedback, setFeedback] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [service, setService] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
 
-    // Mock Data - Replace with backend API call
-    const [service] = useState({
-        id: "SRV-001",
-        date: "2024-12-10",
-        vehicle: "Ford F-150",
-        services: ["Full Service", "Tire Rotation", "Oil Change"],
-        technician: "Mike Johnson",
-        cost: 199.99
-    });
+    useEffect(() => {
+        const fetchServiceDetails = async () => {
+            try {
+                setLoading(true);
+                const response = await customerApi.get(`/api/appointments/${serviceId}`);
+                const apt = response.data;
+                
+                setService({
+                    id: apt.id?.toString() || serviceId,
+                    date: apt.appointmentDate || apt.date || '',
+                    vehicle: `${apt.vehicle?.make || ''} ${apt.vehicle?.model || ''}`.trim() || 'Unknown Vehicle',
+                    services: [apt.service?.name || 'Service'],
+                    technician: apt.employee?.name || 'TBD',
+                    cost: apt.totalCost || 0
+                });
+            } catch (error) {
+                console.error('Error fetching service details:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (serviceId) {
+            fetchServiceDetails();
+        }
+    }, [serviceId]);
 
     const handleStarClick = (starIndex: number) => {
         setRating(starIndex + 1);
@@ -46,21 +62,18 @@ export default function FeedbackPage() {
         setIsSubmitting(true);
 
         try {
-            // Backend Integration: POST /api/services/history/{serviceId}/feedback
-            // const response = await api.post(`/services/history/${serviceId}/feedback`, {
+            // TODO: Replace with actual feedback API endpoint when available
+            // await customerApi.post(`/api/feedback`, {
+            //     appointmentId: serviceId,
             //     rating,
-            //     feedback,
-            //     serviceId
+            //     feedbackText: feedback
             // });
-            
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1500));
             
             alert('Feedback submitted successfully!');
             router.push(`/Dashboard/history/${serviceId}`);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error submitting feedback:', error);
-            alert('Failed to submit feedback. Please try again.');
+            alert(error.response?.data?.message || 'Failed to submit feedback. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
@@ -76,6 +89,28 @@ export default function FeedbackPage() {
         };
         return labels[rating] || '';
     };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gray-950">
+                <Navbar />
+                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="text-gray-400 text-center py-12">Loading service details...</div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!service) {
+        return (
+            <div className="min-h-screen bg-gray-950">
+                <Navbar />
+                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="text-gray-400 text-center py-12">Service not found</div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-950">
@@ -232,6 +267,7 @@ export default function FeedbackPage() {
         </div>
     );
 }
+
 
 
 

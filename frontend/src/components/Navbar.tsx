@@ -1,31 +1,35 @@
 "use client"
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import customerApi from "@/app/api/customerApi";
 
 export default function Navbar() {
     const router = useRouter();
     const pathname = usePathname();
     const [user, setUser] = useState<any>(null);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [unreadCount, setUnreadCount] = useState(2); // Mock data - Replace with backend API
+    const [unreadCount, setUnreadCount] = useState(0);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // Backend Integration: GET /api/notifications/unread-count
+    // Fetch unread notification count
     useEffect(() => {
-        // Fetch unread notification count
-        // const fetchUnreadCount = async () => {
-        //     try {
-        //         const response = await api.get('/notifications/unread-count');
-        //         setUnreadCount(response.data.count);
-        //     } catch (error) {
-        //         console.error('Error fetching notification count:', error);
-        //     }
-        // };
-        // fetchUnreadCount();
+        const fetchUnreadCount = async () => {
+            try {
+                // TODO: Replace with actual notification API endpoint when available
+                // const response = await customerApi.get('/api/notifications/unread-count');
+                // setUnreadCount(response.data.count || 0);
+                setUnreadCount(0);
+            } catch (error) {
+                console.error('Error fetching notification count:', error);
+                setUnreadCount(0);
+            }
+        };
+        
+        fetchUnreadCount();
         
         // Poll every 30 seconds for new notifications
-        // const interval = setInterval(fetchUnreadCount, 30000);
-        // return () => clearInterval(interval);
+        const interval = setInterval(fetchUnreadCount, 30000);
+        return () => clearInterval(interval);
     }, []);
 
     useEffect(() => {
