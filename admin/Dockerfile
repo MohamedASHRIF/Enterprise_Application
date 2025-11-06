@@ -3,11 +3,10 @@ FROM maven:3.9.5-eclipse-temurin-17 AS builder
 # Working directory for build
 WORKDIR /workspace
 
-COPY mvnw pom.xml ./
-COPY .mvn/ .mvn/
+COPY pom.xml ./
 COPY src/ src/
 
-RUN chmod +x mvnw && ./mvnw -B -DskipTests package
+RUN mvn -B -DskipTests package
 
 # Use the non-alpine Temurin JRE image which provides multi-arch manifests (supports linux/arm64)
 FROM eclipse-temurin:17-jre

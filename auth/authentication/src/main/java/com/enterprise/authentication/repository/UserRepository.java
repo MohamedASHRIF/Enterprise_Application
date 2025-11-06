@@ -67,4 +67,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
         Pageable pageable
     );
     // --- END LISTING WITH FILTERS ---
+    
+    // Email verification and password reset
+    Optional<User> findByVerificationToken(String verificationToken);
+    Optional<User> findByPasswordResetToken(String passwordResetToken);
 }
