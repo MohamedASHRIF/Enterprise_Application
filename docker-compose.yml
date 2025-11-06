@@ -9,6 +9,8 @@ services:
       SPRING_DATASOURCE_USERNAME: "neondb_owner"
       SPRING_DATASOURCE_PASSWORD: "npg_uDPTyF9b3eNp"
     # No local db dependency; service uses Neon DB via SPRING_DATASOURCE_URL
+   
+
     ports:
       - "8081:8081"
 
