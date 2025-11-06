@@ -1,26 +1,28 @@
 package com.enterprise.authentication.service;
 
-import com.enterprise.authentication.entity.User;
-import com.enterprise.authentication.repository.UserRepository;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.enterprise.authentication.entity.User;
+import com.enterprise.authentication.repository.UserRepository;
+
 @Service
 public class AuthenticationService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final EmailService emailService;
+    private final DirectEmailService directEmailService;
 
     @Autowired
-    public AuthenticationService(UserRepository userRepository, EmailService emailService) {
+    public AuthenticationService(UserRepository userRepository, DirectEmailService directEmailService) {
         this.userRepository = userRepository;
         this.passwordEncoder = new BCryptPasswordEncoder();
-        this.emailService = emailService;
+        this.directEmailService = directEmailService;
     }
 
     public User registerUser(User user) {
@@ -35,8 +37,8 @@ public class AuthenticationService {
         // Save user
         User savedUser = userRepository.save(user);
         
-        // Send verification email
-        emailService.sendVerificationEmail(savedUser.getEmail(), savedUser.getVerificationToken());
+        // Send verification email using Direct Email Service
+        directEmailService.sendVerificationEmail(savedUser.getEmail(), savedUser.getVerificationToken());
         
         return savedUser;
     }
@@ -83,8 +85,8 @@ public class AuthenticationService {
             user.setPasswordResetTokenExpiry(LocalDateTime.now().plusHours(1));
             userRepository.save(user);
             
-            // Send reset email
-            emailService.sendPasswordResetEmail(user.getEmail(), resetToken);
+            // Send reset email using Direct Email Service
+            directEmailService.sendPasswordResetEmail(user.getEmail(), resetToken);
             return true;
         }
         return false;
@@ -121,8 +123,8 @@ public class AuthenticationService {
             user.setVerificationTokenExpiry(LocalDateTime.now().plusHours(24));
             userRepository.save(user);
             
-            // Send verification email
-            emailService.sendVerificationEmail(user.getEmail(), verificationToken);
+            // Send verification email using Direct Email Service
+            directEmailService.sendVerificationEmail(user.getEmail(), verificationToken);
             return true;
         }
         return false;
