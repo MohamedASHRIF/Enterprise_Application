@@ -4,8 +4,7 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-# Ignore environment files
-.env
+
 
 ### STS ###
 .apt_generated

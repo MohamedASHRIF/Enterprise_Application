@@ -1,5 +1,6 @@
 package org.example.customer_service.controllers;
 
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.example.customer_service.entities.Appointment;
@@ -10,10 +11,7 @@ import org.example.customer_service.repositories.VehicleRepository;
 import org.example.customer_service.repositories.ServiceRepository;
 import org.example.customer_service.services.AppointmentService;
 import org.example.customer_service.services.AuthClientService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,27 +25,7 @@ public class AppointmentController {
     private final AppointmentService appointmentService;
     private final VehicleRepository vehicleRepository;
     private final ServiceRepository serviceRepository;
-
-    @Autowired
-    private AuthClientService authClientService;
-
-    private Long fetchCustomerIdFromAuth(String email) {
-        return authClientService.getCustomerIdByEmail(email);
-    }
-
-    private Long getCustomerId(HttpServletRequest req) {
-        Object id = req.getAttribute("customerId");
-        return id == null ? null : (Long) id;
-    }
-
-    private String getEmail(HttpServletRequest req) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() != null) {
-            return String.valueOf(auth.getPrincipal());
-        }
-        Object email = req.getAttribute("email");
-        return email == null ? null : email.toString();
-    }
+    private final AuthClientService authClientService;
 
     @PostMapping("/book")
     public ResponseEntity<?> book(@RequestBody Map<String, Object> requestData, HttpServletRequest req) {
@@ -74,13 +52,21 @@ public class AppointmentController {
             appointment.setCustomerId(customerId);
 
             // Get vehicle by ID
-            Long vehicleId = Long.valueOf(requestData.get("vehicleId").toString());
+            Object vehicleIdObj = requestData.get("vehicleId");
+            if (vehicleIdObj == null) {
+                return ResponseEntity.status(400).body("Vehicle ID is required");
+            }
+            Long vehicleId = Long.valueOf(vehicleIdObj.toString());
             Vehicle vehicle = vehicleRepository.findById(vehicleId)
                 .orElseThrow(() -> new RuntimeException("Vehicle not found with ID: " + vehicleId));
             appointment.setVehicle(vehicle);
 
             // Get service by ID
-            Long serviceId = Long.valueOf(requestData.get("serviceId").toString());
+            Object serviceIdObj = requestData.get("serviceId");
+            if (serviceIdObj == null) {
+                return ResponseEntity.status(400).body("Service ID is required");
+            }
+            Long serviceId = Long.valueOf(serviceIdObj.toString());
             Service service = serviceRepository.findById(serviceId)
                 .orElseThrow(() -> new RuntimeException("Service not found with ID: " + serviceId));
             appointment.setService(service);
@@ -138,17 +124,19 @@ public class AppointmentController {
         return ResponseEntity.ok(list);
     }
 
+    @GetMapping("/customer/{customerId}")
+    public List<Appointment> getAppointmentsByCustomer(@PathVariable Long customerId) {
+        return appointmentService.getAppointmentsByCustomer(customerId);
+    }
 
     @PutMapping("/{id}/status")
     public Appointment updateStatus(@PathVariable Long id, @RequestParam AppointmentStatus status) {
         return appointmentService.updateAppointmentStatus(id, status);
     }
-
     @GetMapping("/count")
     public Long getAppointmentCountByStatus(@RequestParam AppointmentStatus status) {
         return appointmentService.getAppointmentCountByStatus(status);
     }
-
     @GetMapping("/{id}")
     public Appointment getAppointmentById(@PathVariable Long id) {
         return appointmentService.getAppointmentById(id)
@@ -158,6 +146,38 @@ public class AppointmentController {
     @DeleteMapping("/{id}")
     public String deleteAppointment(@PathVariable Long id) {
         boolean deleted = appointmentService.deleteAppointment(id);
-        return deleted ? "Appointment deleted successfully" : "Appointment not found";
+        if (deleted) {
+            return "Appointment deleted successfully with ID: " + id;
+        } else {
+            return "Appointment not found with ID: " + id;
+        }
+    }
+
+    // Helper methods to extract JWT claims from request
+    private String getEmail(HttpServletRequest request) {
+        Claims claims = (Claims) request.getAttribute("jwtClaims");
+        if (claims != null) {
+            return claims.getSubject();
+        }
+        return null;
+    }
+
+    private Long getCustomerId(HttpServletRequest request) {
+        Claims claims = (Claims) request.getAttribute("jwtClaims");
+        if (claims != null) {
+            Object id = claims.get("id");
+            if (id != null) {
+                if (id instanceof Long) {
+                    return (Long) id;
+                } else if (id instanceof Number) {
+                    return ((Number) id).longValue();
+                }
+            }
+        }
+        return null;
+    }
+
+    private Long fetchCustomerIdFromAuth(String email) {
+        return authClientService.getCustomerIdByEmail(email);
     }
 }

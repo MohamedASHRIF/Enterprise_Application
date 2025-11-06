@@ -33,9 +33,8 @@ public class Appointment {
     @JsonIgnoreProperties("appointments") // Prevent circular reference
     private Service service;
 
-    @ManyToOne
-    @JoinColumn(name = "employee_id", nullable = true)
-    private Employee employee;
+    // Employee assignment is now owned by employee-service (BFF).
+    // We no longer store a JPA relation to Employee here to avoid duplicated responsibility.
 
     private LocalDate appointmentDate;
     private String appointmentTime;

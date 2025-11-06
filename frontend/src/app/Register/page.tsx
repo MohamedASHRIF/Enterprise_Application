@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import api from "../api/api";
 
 export default function Register(){
@@ -14,6 +15,7 @@ export default function Register(){
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [passwordError, setPasswordError] = useState("");
+    const [successMessage, setSuccessMessage] = useState("");
     const role = "CUSTOMER";
 
     const validatePasswords = () => {
@@ -49,19 +51,22 @@ export default function Register(){
     }
     
     setIsLoading(true);
+    setSuccessMessage("");
 
     try {
       const res= await api.post('/auth/register', {firstName, lastName,email,password, phoneNumber,  role});
       console.log('Register response:', res.data);
       
-      // Store token and user data
-      if (res.data && res.data.token) {
-        localStorage.setItem('token', res.data.token);
-        if (res.data.user) {
-          localStorage.setItem('user', JSON.stringify(res.data.user));
-        }
-        alert('Registration Successful!')
-        window.location.href='/'
+      // Show success message with email verification instruction
+      if (res.data && res.data.message) {
+        setSuccessMessage(res.data.message);
+        // Clear form
+        setFName("");
+        setLName("");
+        setEmail("");
+        setPassword("");
+        setConfirmPassword("");
+        setPhone("");
       } else {
         throw new Error('Invalid response from server');
       }
@@ -86,6 +91,21 @@ export default function Register(){
           <h1 className="text-4xl font-extrabold text-gray-900 mb-3 tracking-tight">Create Account</h1>
           <p className="text-gray-600 font-medium">Join us today and get started</p>
         </div>
+
+        {successMessage && (
+          <div className="mb-6 p-4 bg-green-50 border-2 border-green-200 rounded-xl relative z-10">
+            <div className="flex items-start gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-green-800 font-bold text-sm mb-1">Registration Successful!</p>
+                <p className="text-green-700 text-sm">{successMessage}</p>
+                <p className="text-green-600 text-xs mt-2 italic">Check your spam folder if you don&apos;t see the email.</p>
+              </div>
+            </div>
+          </div>
+        )}
         
         <form onSubmit={handleRegister} className="space-y-4 relative z-10">
           <div className="grid grid-cols-2 gap-4">
@@ -235,7 +255,7 @@ export default function Register(){
         
         <div className="mt-8 text-center relative z-10">
           <span className="text-gray-700 font-medium">Already have an account? </span>
-          <a className="text-indigo-700 hover:text-indigo-900 font-bold transition-colors underline decoration-2 underline-offset-2 hover:decoration-indigo-900" href="/">Sign In</a>
+          <Link href="/" className="text-indigo-700 hover:text-indigo-900 font-bold transition-colors underline decoration-2 underline-offset-2 hover:decoration-indigo-900">Sign In</Link>
         </div>
       </div>
     </div>

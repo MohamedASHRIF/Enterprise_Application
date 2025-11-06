@@ -1,13 +1,24 @@
-# Multi-stage Dockerfile for admin (Maven / Spring Boot)
-FROM maven:3.8.8-eclipse-temurin-17 AS build
-WORKDIR /workspace
-COPY pom.xml ./
-COPY src ./src
-RUN mvn -B -DskipTests package || mvn -B -DskipTests package
+FROM maven:3.9.5-eclipse-temurin-17 AS builder
 
-FROM eclipse-temurin:17-jre-jammy
+# Working directory for build
+WORKDIR /workspace
+
+COPY mvnw pom.xml ./
+COPY .mvn/ .mvn/
+COPY src/ src/
+
+RUN chmod +x mvnw && ./mvnw -B -DskipTests package
+
+# Use the non-alpine Temurin JRE image which provides multi-arch manifests (supports linux/arm64)
+FROM eclipse-temurin:17-jre
+
 WORKDIR /app
-ARG JAR_FILE=target/*.jar
-COPY --from=build /workspace/${JAR_FILE} /app/app.jar
-EXPOSE 8080
-ENTRYPOINT ["java","-jar","/app/app.jar"]
+
+
+COPY --from=builder /workspace/target/*.jar app.jar
+
+
+EXPOSE 8082
+
+# Run the jar
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

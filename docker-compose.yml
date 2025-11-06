@@ -1,17 +1,5 @@
 version: "3.8"
 services:
-  db:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_USER: appuser
-      POSTGRES_PASSWORD: changeme
-      POSTGRES_DB: appdb
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
-
   auth:
     build:
       context: ./auth/authentication
@@ -20,8 +8,9 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:postgresql://ep-long-feather-a1jvn6ah-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require&channel_binding=require"
       SPRING_DATASOURCE_USERNAME: "neondb_owner"
       SPRING_DATASOURCE_PASSWORD: "npg_uDPTyF9b3eNp"
-    depends_on:
-      - db
+    # No local db dependency; service uses Neon DB via SPRING_DATASOURCE_URL
+   
+
     ports:
       - "8081:8081"
 
@@ -29,8 +18,7 @@ services:
     build:
       context: ./Backend/notification-system
       dockerfile: Dockerfile
-    depends_on:
-      - db
+    # Notification does not require a local database
     ports:
       - "8083:8083"
 
@@ -42,8 +30,7 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:postgresql://ep-old-bread-a4lduu7m-pooler.us-east-1.aws.neon.tech:5432/neondb?sslmode=require&channel_binding=require"
       SPRING_DATASOURCE_USERNAME: "neondb_owner"
       SPRING_DATASOURCE_PASSWORD: "npg_cx0ZlPBeyT6R"
-    depends_on:
-      - db
+    # No local db dependency; service uses Neon DB via SPRING_DATASOURCE_URL
     ports:
       - "8070:8070"
 
@@ -51,8 +38,7 @@ services:
     build:
       context: ./chatbot-backend
       dockerfile: Dockerfile
-    depends_on:
-      - db
+    # Chatbot does not require a local database
     ports:
       - "8086:8086"
 
@@ -64,8 +50,7 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:postgresql://ep-raspy-cherry-ahvd3mbd-pooler.c-3.us-east-1.aws.neon.tech:5432/neondb?sslmode=require&channel_binding=require"
       SPRING_DATASOURCE_USERNAME: "neondb_owner"
       SPRING_DATASOURCE_PASSWORD: "npg_QMq8Be5whTDA"
-    depends_on:
-      - db
+    # No local db dependency; service uses Neon DB via SPRING_DATASOURCE_URL
     ports:
       - "8082:8082"
 
@@ -77,8 +62,7 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:postgresql://ep-weathered-paper-a1e2pqli-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require"
       SPRING_DATASOURCE_USERNAME: "neondb_owner"
       SPRING_DATASOURCE_PASSWORD: "npg_7qejET0MJmlF"
-    depends_on:
-      - db
+    # No local db dependency; service uses Neon DB via SPRING_DATASOURCE_URL
     ports:
       - "8085:8085"
 
@@ -98,6 +82,4 @@ services:
       - customer_service
 
 volumes:
-  pgdata:
-
   rabbitmqdata:

@@ -12,6 +12,7 @@ import com.sendgrid.helpers.mail.Mail;
 import com.sendgrid.helpers.mail.objects.Content;
 import com.sendgrid.helpers.mail.objects.Email;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +23,9 @@ import java.time.LocalDate;
 public class EmailConsumer {
 
     private final EmailLogRepository emailLogRepository;
+
+    @Autowired
+    private NotificationService notificationService;
 
     @Value("${sendgrid.api.key}")
     private String sendGridApiKey;
@@ -35,6 +39,15 @@ public class EmailConsumer {
         try {
             sendEmail(emailRequestDTO);
             saveEmailLog(emailRequestDTO, "SENT");
+
+
+            notificationService.createNotification(
+                    emailRequestDTO.getToMail(),
+                    emailRequestDTO.getSubject(),
+                    emailRequestDTO.getBody(),
+                    "EMAIL"
+            );
+
         } catch (Exception e) {
             saveEmailLog(emailRequestDTO, "FAILED");
             System.err.println("Failed to send email: " + e.getMessage());
@@ -42,7 +55,7 @@ public class EmailConsumer {
     }
 
     private void sendEmail(EmailRequestDTO dto) throws IOException {
-        Email from = new Email("petergwenstacy123@gmail.com");
+        Email from = new Email("eadalerts@gmail.com");
         Email to = new Email(dto.getToMail());
         Content content = new Content("text/plain", dto.getBody());
         Mail mail = new Mail(from, dto.getSubject(), to, content);

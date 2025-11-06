@@ -2,15 +2,20 @@ package org.example.customer_service.controllers;
 
 import lombok.RequiredArgsConstructor;
 import org.example.customer_service.dto.AppointmentSummaryDto;
+import org.example.customer_service.dto.EmployeeSummaryDto;
 import org.example.customer_service.dto.ServiceSummaryDto;
 import org.example.customer_service.dto.VehicleSummaryDto;
-import org.example.customer_service.entities.Appointment;
+// import org.example.customer_service.entities.Appointment; // not used
 import org.example.customer_service.services.AppointmentService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/public/appointments")
@@ -18,11 +23,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class AppointmentPublicController {
 
     private final AppointmentService appointmentService;
+    private final RestTemplate restTemplate;
+
+    @Value("${employee.service.url:http://localhost:8070}")
+    private String employeeServiceUrl;
 
     /**
-     * Non-breaking public endpoint returning a shallow appointment DTO
-     * so other services (BFFs) can consume appointment info without
-     * serializing the full JPA graph or changing existing controllers.
+     * Public endpoint returning a shallow appointment DTO enriched with
+     * employee details fetched from the employee-service (if assigned).
      */
     @GetMapping("/{id}")
     public ResponseEntity<?> getAppointmentPublic(@PathVariable Long id) {
@@ -50,11 +58,37 @@ public class AppointmentPublicController {
                         s.setCategory(app.getService().getCategory());
                         dto.setService(s);
                     }
-                    if (app.getEmployee() != null) dto.setEmployeeId(app.getEmployee().getId());
+
+                    // appointment core fields
                     dto.setAppointmentDate(app.getAppointmentDate());
                     dto.setAppointmentTime(app.getAppointmentTime());
                     dto.setStatus(app.getStatus());
                     dto.setEstimatedDuration(app.getEstimatedDuration());
+
+                    // Try to fetch employee details from employee-service by appointment id
+                    try {
+                        String url = employeeServiceUrl + "/api/assignments/by-appointment/" + app.getId() + "/employee";
+                        // Response shape: { success: true, data: { ...employee fields... }, message: "..." }
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+                        if (response != null && Boolean.TRUE.equals(response.get("success"))) {
+                            Object data = response.get("data");
+                            if (data instanceof Map) {
+                                @SuppressWarnings("unchecked")
+                                Map<String, Object> emp = (Map<String, Object>) data;
+                                EmployeeSummaryDto e = new EmployeeSummaryDto();
+                                if (emp.get("id") != null) e.setId(((Number) emp.get("id")).longValue());
+                                e.setFirstName(emp.get("firstName") != null ? emp.get("firstName").toString() : null);
+                                e.setLastName(emp.get("lastName") != null ? emp.get("lastName").toString() : null);
+                                e.setEmail(emp.get("email") != null ? emp.get("email").toString() : null);
+                                e.setPhoneNumber(emp.get("phoneNumber") != null ? emp.get("phoneNumber").toString() : null);
+                                dto.setEmployee(e);
+                            }
+                        }
+                    } catch (Exception ex) {
+                        // Non-fatal: return appointment without employee details
+                    }
+
                     return ResponseEntity.ok(dto);
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());
