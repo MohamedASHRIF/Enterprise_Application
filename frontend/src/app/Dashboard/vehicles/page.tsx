@@ -1,5 +1,6 @@
 "use client"
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getVehicles, deleteVehicle } from '@/app/api/customerApi';
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import VehicleList from "@/components/vehicles/VehicleList";
@@ -11,91 +12,22 @@ import VehicleStats from "@/components/vehicles/VehicleStats";
 export default function VehiclesPage() {
     const router = useRouter();
     
-    // Mock Data - Replace with backend API calls
-    const [vehicles] = useState([
-        { 
-            id: 1, 
-            make: "Toyota", 
-            model: "Camry", 
-            year: "2021", 
-            plate: "ABC-1234",
-            color: "Silver",
-            isDefault: true
-        },
-        { 
-            id: 2, 
-            make: "Honda", 
-            model: "Civic", 
-            year: "2020", 
-            plate: "XYZ-5678",
-            color: "Black",
-            isDefault: false
-        },
-        
-        { 
-            id: 4, 
-            make: "Ford", 
-            model: "F-150", 
-            year: "2022", 
-            plate: "FRD-3456",
-            color: "Red",
-            isDefault: false
-        },
-        { 
-            id: 5, 
-            make: "BMW", 
-            model: "3 Series", 
-            year: "2023", 
-            plate: "BMW-7890",
-            color: "Blue",
-            isDefault: false
-        },
-        { 
-            id: 6, 
-            make: "Mercedes-Benz", 
-            model: "C-Class", 
-            year: "2021", 
-            plate: "MRC-1122",
-            color: "Black",
-            isDefault: false
-        },
-        { 
-            id: 7, 
-            make: "Chevrolet", 
-            model: "Silverado", 
-            year: "2022", 
-            plate: "CHV-4455",
-            color: "Gray",
-            isDefault: false
-        },
-        { 
-            id: 8, 
-            make: "Audi", 
-            model: "A4", 
-            year: "2023", 
-            plate: "AUD-6677",
-            color: "White",
-            isDefault: false
-        },
-        { 
-            id: 9, 
-            make: "Nissan", 
-            model: "Altima", 
-            year: "2020", 
-            plate: "NSN-8899",
-            color: "Silver",
-            isDefault: false
-        },
-        { 
-            id: 10, 
-            make: "Hyundai", 
-            model: "Elantra", 
-            year: "2021", 
-            plate: "HYU-1020",
-            color: "Red",
-            isDefault: false
-        }
-    ]);
+    const [vehicles, setVehicles] = useState<any[]>([]);
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const stored = localStorage.getItem('user');
+                const user = stored ? JSON.parse(stored) : null;
+                const customerId = user?.id || user?.userId || user?.customerId;
+                const list = await getVehicles(customerId ? Number(customerId) : undefined);
+                setVehicles(list || []);
+            } catch (err) {
+                console.error('Failed to load vehicles', err);
+            }
+        };
+        load();
+    }, []);
 
     const handleAddVehicle = () => {
         router.push('/Dashboard/vehicles/add');
@@ -107,10 +39,15 @@ export default function VehiclesPage() {
         alert(`Edit vehicle ${id} - Coming soon`);
     };
 
-    const handleDeleteVehicle = (id: number) => {
-        // Backend Integration: Call DELETE /api/vehicles/{id}
-        if (confirm('Are you sure you want to delete this vehicle?')) {
-            alert(`Delete vehicle ${id} - Backend integration needed`);
+    const handleDeleteVehicle = async (id: number) => {
+        if (!confirm('Are you sure you want to delete this vehicle?')) return;
+        try {
+            await deleteVehicle(id);
+            setVehicles((cur) => cur.filter(v => v.id !== id));
+            alert('Vehicle deleted');
+        } catch (err) {
+            console.error('Delete vehicle failed', err);
+            alert('Failed to delete vehicle');
         }
     };
 
