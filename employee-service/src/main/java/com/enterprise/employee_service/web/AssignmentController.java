@@ -6,6 +6,7 @@ import com.enterprise.employee_service.service.AssignmentService;
 import com.enterprise.employee_service.web.dto.AppointmentRequestDto;
 import com.enterprise.employee_service.web.dto.AssignmentResponseDto;
 import com.enterprise.employee_service.web.dto.ResponseDto;
+import com.enterprise.employee_service.web.dto.UserDto;
 import com.enterprise.employee_service.web.mapper.DtoMapper;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -70,6 +71,16 @@ public class AssignmentController {
     List<com.enterprise.employee_service.web.dto.AssignmentResponseDto> enriched = assignmentService.getEnrichedAssignmentsForEmployee(employeeId);
     return ResponseEntity.ok(new ResponseDto<>(true, enriched,
         "Assignments retrieved successfully"));
+    }
+
+    /**
+     * Return employee details for a given appointment (if an assignment exists).
+     */
+    @GetMapping("/by-appointment/{appointmentId}/employee")
+    public ResponseEntity<ResponseDto<UserDto>> employeeForAppointment(@PathVariable Long appointmentId) {
+        com.enterprise.employee_service.web.dto.UserDto user = assignmentService.getEmployeeForAppointment(appointmentId);
+        if (user == null) return ResponseEntity.ok(new ResponseDto<>(true, null, "No employee assigned"));
+        return ResponseEntity.ok(new ResponseDto<>(true, user, "Employee retrieved"));
     }
 
     /**
