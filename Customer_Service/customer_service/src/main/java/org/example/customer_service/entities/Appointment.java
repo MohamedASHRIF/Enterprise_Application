@@ -31,7 +31,7 @@ public class Appointment {
     private Service service;
 
     @ManyToOne
-    @JoinColumn(name = "employee_id", nullable = false)
+    @JoinColumn(name = "employee_id", nullable = true)
     private Employee employee;
 
     private LocalDate appointmentDate;
