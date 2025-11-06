@@ -5,8 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.List;
+// Employee assignments are owned by employee-service (BFF).
+// We don't keep a JPA relationship to appointments in the customer DB.
 
 @Entity
 @Data
@@ -21,8 +21,5 @@ public class Employee {
     private String name;
     private String phone;
     private String email;
-
-    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL)
-    private List<Appointment> appointments = new ArrayList<>();
 }
 
