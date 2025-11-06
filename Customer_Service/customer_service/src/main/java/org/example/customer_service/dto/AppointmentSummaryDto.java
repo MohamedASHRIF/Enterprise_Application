@@ -15,7 +15,7 @@ public class AppointmentSummaryDto {
     private Long customerId;
     private VehicleSummaryDto vehicle;
     private ServiceSummaryDto service;
-    private Long employeeId;
+    private EmployeeSummaryDto employee;
     private LocalDate appointmentDate;
     private String appointmentTime;
     private AppointmentStatus status;

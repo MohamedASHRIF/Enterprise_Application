@@ -70,11 +70,9 @@ foreach($kv in $images.GetEnumerator()) {
 
 # 4) Apply infra manifests
 Write-Host "`n== Applying infra manifests =="
-Exec-Log "kubectl apply -f k8s/postgres-deployment.yml"
 Exec-Log "kubectl apply -f k8s/rabbitmq-deployment.yml"
 
 Write-Host "Waiting for infra deployments to become available..."
-Exec-Log "kubectl -n $Namespace wait --for=condition=available deployment/postgres --timeout=$TimeoutDeploy"
 Exec-Log "kubectl -n $Namespace wait --for=condition=available deployment/rabbitmq --timeout=$TimeoutDeploy"
 
 # 5) Apply all k8s manifests
@@ -100,7 +98,6 @@ Start-Job -ScriptBlock { kubectl -n enterprise-dev port-forward svc/employee 808
 Start-Job -ScriptBlock { kubectl -n enterprise-dev port-forward svc/admin 8083:8080 } | Out-Null
 Start-Job -ScriptBlock { kubectl -n enterprise-dev port-forward svc/customer 8084:8080 } | Out-Null
 Start-Job -ScriptBlock { kubectl -n enterprise-dev port-forward svc/chatbot 8085:8080 } | Out-Null
-Start-Job -ScriptBlock { kubectl -n enterprise-dev port-forward svc/postgres 5433:5432 } | Out-Null
 Start-Job -ScriptBlock { kubectl -n enterprise-dev port-forward svc/rabbitmq 5673:5672 } | Out-Null
 Start-Job -ScriptBlock { kubectl -n enterprise-dev port-forward svc/rabbitmq 15673:15672 } | Out-Null
 
