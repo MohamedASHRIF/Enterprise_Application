@@ -30,9 +30,8 @@ public class Appointment {
     @JoinColumn(name = "service_id", nullable = false)
     private Service service;
 
-    @ManyToOne
-    @JoinColumn(name = "employee_id", nullable = false)
-    private Employee employee;
+    // Employee assignment is now owned by employee-service (BFF).
+    // We no longer store a JPA relation to Employee here to avoid duplicated responsibility.
 
     private LocalDate appointmentDate;
     private String appointmentTime;

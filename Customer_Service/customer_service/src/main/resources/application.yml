@@ -1,11 +1,16 @@
+## Minimal service endpoints (YAML) - override with env vars in production
+employee.service.url: "http://employee:8070"
+
+
 server:
   port: 8085
 
+
 spring:
   datasource:
-    url: jdbc:postgresql://ep-weathered-paper-a1e2pqli-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require
-    username: neondb_owner
-    password: npg_7qejET0MJmlF
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://db:5432/appdb}
+    username: ${SPRING_DATASOURCE_USERNAME:appuser}
+    password: ${SPRING_DATASOURCE_PASSWORD:changeme}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -26,3 +31,4 @@ security:
   jwt:
     secret: ${JWT_SECRET:very_secure_default_change_me}
 
+#worked

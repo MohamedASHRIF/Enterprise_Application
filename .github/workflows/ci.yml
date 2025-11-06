@@ -33,7 +33,6 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U appuser" --health-interval 10s --health-timeout 5s --health-retries 5
-
     steps:
       - uses: actions/checkout@v4
 
@@ -50,7 +49,6 @@ jobs:
           cd auth/authentication; mvn -B -DskipTests package || true; cd -
           cd employee-service; mvn -B -DskipTests package || true; cd -
           cd chatbot-backend; mvn -B -DskipTests package || true; cd -
-
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -62,7 +60,6 @@ jobs:
           npm ci
           npm run build || true
           cd -
-
       - name: Ensure lowercase IMAGE_NAMESPACE
         run: |
           # derive owner from GITHUB_REPOSITORY (owner/repo) and lowercase it
@@ -124,7 +121,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/notification:${{ github.sha }}
-
       - name: Build & push auth image
         uses: docker/build-push-action@v4
         with:
@@ -134,7 +130,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/auth:${{ github.sha }}
-
       - name: Build & push employee image
         uses: docker/build-push-action@v4
         with:
@@ -144,7 +139,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/employee:${{ github.sha }}
-
       - name: Build & push chatbot image
         uses: docker/build-push-action@v4
         with:
@@ -154,7 +148,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/chatbot:${{ github.sha }}
-
       - name: Build & push admin image
         uses: docker/build-push-action@v4
         with:
@@ -164,7 +157,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/admin:${{ github.sha }}
-
       - name: Build & push customer_service image
         uses: docker/build-push-action@v4
         with:
@@ -174,7 +166,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/customer_service:${{ github.sha }}
-
       - name: Build & push frontend image
         uses: docker/build-push-action@v4
         with:
@@ -184,7 +175,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/frontend:${{ github.sha }}
-
   # deploy-staging:
   #   name: Deploy to staging
   #   runs-on: ubuntu-latest

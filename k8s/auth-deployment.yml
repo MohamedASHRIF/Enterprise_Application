@@ -18,82 +18,24 @@ spec:
         image: enterprise-auth:dev
         imagePullPolicy: IfNotPresent
         ports:
-          - containerPort: 8080
+          - containerPort: 8081
         env:
           - name: SPRING_DATASOURCE_URL
-            value: jdbc:postgresql://postgres.enterprise-dev.svc.cluster.local:5432/appdb
+            value: "jdbc:postgresql://ep-long-feather-a1jvn6ah-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require&channel_binding=require"
           - name: SPRING_DATASOURCE_USERNAME
-            valueFrom:
-              secretKeyRef:
-                name: db-secret
-                key: POSTGRES_USER
+            value: "neondb_owner"
           - name: SPRING_DATASOURCE_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: db-secret
-                key: POSTGRES_PASSWORD
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: auth
-  namespace: enterprise-dev
-spec:
-  selector:
-    app: auth
-  ports:
-    - protocol: TCP
-      port: 8080
-      targetPort: 8080
-  type: NodePort
-  externalTrafficPolicy: Cluster
-  sessionAffinity: None
-  sessionAffinityConfig: {}
-
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: auth
-  namespace: enterprise-dev
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: auth
-  template:
-    metadata:
-      labels:
-        app: auth
-    spec:
-      containers:
-      - name: auth
-        image: enterprise-auth:dev
-        imagePullPolicy: IfNotPresent
-        ports:
-          - containerPort: 8080
-        env:
-          - name: SPRING_DATASOURCE_URL
-            value: jdbc:postgresql://postgres.enterprise-dev.svc.cluster.local:5432/appdb
-          - name: SPRING_DATASOURCE_USERNAME
-            valueFrom:
-              secretKeyRef:
-                name: db-secret
-                key: POSTGRES_USER
-          - name: SPRING_DATASOURCE_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: db-secret
-                key: POSTGRES_PASSWORD
+            value: "npg_uDPTyF9b3eNp"
         readinessProbe:
           httpGet:
             path: /actuator/health
-            port: 8080
+            port: 8081
           initialDelaySeconds: 15
           periodSeconds: 10
         livenessProbe:
           httpGet:
             path: /actuator/health
-            port: 8080
+            port: 8081
           initialDelaySeconds: 30
           periodSeconds: 20
 ---
@@ -107,8 +49,8 @@ spec:
     app: auth
   ports:
     - protocol: TCP
-      port: 8080
-      targetPort: 8080
+      port: 8081
+      targetPort: 8081
       nodePort: 31082
   type: NodePort
 

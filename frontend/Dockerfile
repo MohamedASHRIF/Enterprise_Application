@@ -1,24 +1,29 @@
-# Dockerfile for Next.js frontend (SSR) — builds and runs in production mode
-FROM node:18-alpine as deps
+# Multi-stage Dockerfile for Next.js frontend
+# Build stage
+FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
 
-FROM node:18-alpine as builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Install build dependencies
+COPY package.json package-lock.json ./
+RUN npm ci --silent
+
+# Copy app sources and build
 COPY . .
 RUN npm run build
 
-FROM node:18-alpine as runner
+# Production image
+FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+
+# Install only production deps
+COPY package.json package-lock.json ./
+RUN npm ci --production --silent
+
+# Copy next build output and public files
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/package.json ./package.json
-# If package-lock.json is present, `npm ci --production` is ideal. Many projects
-# in this repo don't include package-lock.json, so use a compatible install that
-# omits devDependencies instead.
-RUN npm install --omit=dev --no-audit --no-fund
+COPY --from=builder /app/node_modules ./node_modules
+
 EXPOSE 3000
-CMD ["npm","start"]
+CMD ["npm", "start"]

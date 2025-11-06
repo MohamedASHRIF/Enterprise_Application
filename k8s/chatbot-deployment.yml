@@ -18,82 +18,20 @@ spec:
         image: enterprise-chatbot:dev
         imagePullPolicy: IfNotPresent
         ports:
-          - containerPort: 8080
+          - containerPort: 8086
         env:
-          - name: SPRING_DATASOURCE_URL
-            value: jdbc:postgresql://postgres.enterprise-dev.svc.cluster.local:5432/appdb
-          - name: SPRING_DATASOURCE_USERNAME
-            valueFrom:
-              secretKeyRef:
-                name: db-secret
-                key: POSTGRES_USER
-          - name: SPRING_DATASOURCE_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: db-secret
-                key: POSTGRES_PASSWORD
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: chatbot
-  namespace: enterprise-dev
-spec:
-  selector:
-    app: chatbot
-  ports:
-    - protocol: TCP
-      port: 8080
-      targetPort: 8080
-  type: NodePort
-  externalTrafficPolicy: Cluster
-  sessionAffinity: None
-  sessionAffinityConfig: {}
-
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: chatbot
-  namespace: enterprise-dev
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: chatbot
-  template:
-    metadata:
-      labels:
-        app: chatbot
-    spec:
-      containers:
-      - name: chatbot
-        image: enterprise-chatbot:dev
-        imagePullPolicy: IfNotPresent
-        ports:
-          - containerPort: 8080
-        env:
-          - name: SPRING_DATASOURCE_URL
-            value: jdbc:postgresql://postgres.enterprise-dev.svc.cluster.local:5432/appdb
-          - name: SPRING_DATASOURCE_USERNAME
-            valueFrom:
-              secretKeyRef:
-                name: db-secret
-                key: POSTGRES_USER
-          - name: SPRING_DATASOURCE_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: db-secret
-                key: POSTGRES_PASSWORD
+            # Chatbot service does not require a database in this deployment.
+            # No SPRING_DATASOURCE_* environment variables are set.
         readinessProbe:
           httpGet:
             path: /actuator/health
-            port: 8080
+            port: 8086
           initialDelaySeconds: 15
           periodSeconds: 10
         livenessProbe:
           httpGet:
             path: /actuator/health
-            port: 8080
+            port: 8086
           initialDelaySeconds: 30
           periodSeconds: 20
 ---
@@ -107,8 +45,8 @@ spec:
     app: chatbot
   ports:
     - protocol: TCP
-      port: 8080
-      targetPort: 8080
+      port: 8086
+      targetPort: 8086
       nodePort: 31086
   type: NodePort
 
