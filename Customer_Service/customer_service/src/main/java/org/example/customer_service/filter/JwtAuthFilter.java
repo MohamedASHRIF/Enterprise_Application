@@ -41,7 +41,21 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
                 String email = claims.getSubject();
 
+                // set claims for controllers that inspect them
                 request.setAttribute("jwtClaims", claims);
+
+                // --- ADD: set email attribute (controllers expect this) ---
+                request.setAttribute("email", email);
+
+                // Optionally set customerId if token includes an "id" claim:
+                Object idClaim = claims.get("id");
+                if (idClaim != null) {
+                    // Be careful with types: jwt numeric claims may come as Integer/Long
+                    try {
+                        Long idLong = Long.valueOf(String.valueOf(idClaim));
+                        request.setAttribute("customerId", idLong);
+                    } catch (Exception ignored) {}
+                }
 
                 UsernamePasswordAuthenticationToken auth =
                         new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList());
