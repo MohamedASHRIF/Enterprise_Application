@@ -1,329 +1,304 @@
-"use client"
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
+"use client";
 
-// Backend Integration: 
-// GET /api/notifications
-// PATCH /api/notifications/{id}/read
-// PATCH /api/notifications/mark-all-read
-// DELETE /api/notifications/{id}
+import { useState, useEffect } from "react";
+import Navbar from "@/components/Navbar";
+import SockJS from "sockjs-client";
+import { Client } from "@stomp/stompjs";
 
 export default function NotificationsPage() {
-    const router = useRouter();
-    const [filter, setFilter] = useState('all');
-    const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-    
-    // Mock Data - Replace with backend API calls
-    const [notifications, setNotifications] = useState([
-        {
-            id: "NTF-001",
-            type: "APPOINTMENT_UPDATE",
-            title: "Service Started",
-            message: "Your Toyota Camry oil change service has started. Mike Johnson is working on your vehicle.",
-            time: "2024-12-18T11:15:00",
-            isRead: false,
-            appointmentId: "APT-003",
-            link: "/Dashboard/appointments/APT-003"
-        },
-        {
-            id: "NTF-002",
-            type: "APPOINTMENT_COMPLETED",
-            title: "Service Completed",
-            message: "Your Ford F-150 full service has been completed. Ready for pickup!",
-            time: "2024-12-10T13:45:00",
-            isRead: false,
-            appointmentId: "APT-004",
-            link: "/Dashboard/appointments/APT-004"
-        },
-        {
-            id: "NTF-003",
-            type: "APPOINTMENT_REMINDER",
-            title: "Appointment Reminder",
-            message: "You have an appointment tomorrow at 10:00 AM for your Toyota Camry.",
-            time: "2024-12-19T08:00:00",
-            isRead: true,
-            appointmentId: "APT-001",
-            link: "/Dashboard/appointments/APT-001"
-        },
-        {
-            id: "NTF-004",
-            type: "FEEDBACK_REQUEST",
-            title: "Share Your Experience",
-            message: "How was your recent service with Mike Johnson? Please rate and provide feedback.",
-            time: "2024-12-10T14:00:00",
-            isRead: true,
-            appointmentId: "APT-004",
-            link: "/Dashboard/appointments/APT-004/feedback"
-        },
-        {
-            id: "NTF-005",
-            type: "APPOINTMENT_UPDATE",
-            title: "Parts Arrived",
-            message: "The parts for your Tesla Model 3 brake inspection have arrived. Service will resume shortly.",
-            time: "2024-12-18T12:30:00",
-            isRead: true,
-            appointmentId: "APT-003",
-            link: "/Dashboard/appointments/APT-003"
-        },
-        {
-            id: "NTF-006",
-            type: "APPOINTMENT_CANCELLED",
-            title: "Appointment Cancelled",
-            message: "Your Honda Civic tire rotation has been cancelled. Please book a new appointment.",
-            time: "2024-12-15T09:00:00",
-            isRead: true,
-            appointmentId: "APT-006",
-            link: null
-        },
-        {
-            id: "NTF-007",
-            type: "APPOINTMENT_SCHEDULED",
-            title: "Appointment Confirmed",
-            message: "Your Honda Civic tire rotation has been scheduled for December 22 at 2:00 PM.",
-            time: "2024-12-10T10:00:00",
-            isRead: true,
-            appointmentId: "APT-002",
-            link: "/Dashboard/appointments/APT-002"
-        },
-        {
-            id: "NTF-008",
-            type: "SYSTEM_UPDATE",
-            title: "New Services Available",
-            message: "We've added new premium services! Check them out in our booking section.",
-            time: "2024-12-08T12:00:00",
-            isRead: true,
-            link: "/Dashboard/book-service"
-        },
-        {
-            id: "NTF-009",
-            type: "EMPLOYEE_ASSIGNED",
-            title: "Technician Assigned",
-            message: "Sarah Williams has been assigned to your Honda Civic tire rotation appointment.",
-            time: "2024-12-10T10:15:00",
-            isRead: true,
-            appointmentId: "APT-002",
-            link: "/Dashboard/appointments/APT-002"
-        }
-    ]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [selectedNotification, setSelectedNotification] = useState<any | null>(
+    null
+  );
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [stompClient, setStompClient] = useState<any>(null);
 
-    // Real-time Updates Simulation
-    // Backend Integration: Implement WebSocket or Polling
-    // WebSocket: ws://localhost:8081/api/notifications/live
-    // Polling: setInterval(() => fetchNotifications(), 30000) // Every 30 seconds
-    
-    useEffect(() => {
-        const interval = setInterval(() => {
-            // Simulated real-time update
-            console.log("Checking for new notifications...");
-            // Backend Integration: Poll or listen to WebSocket
-        }, 30000);
+  const userEmail = "john@example.com"; // TODO: make dynamic later
 
-        return () => clearInterval(interval);
-    }, []);
+  // 🔹 Fetch notifications from backend
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(
+        `http://localhost:8083/api/notifications/summary/${userEmail}`
+      );
+      const data = await res.json();
+      setNotifications(data || []);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const getNotificationIcon = (type: string) => {
-        const iconMap: { [key: string]: { icon: string; color: string; bgColor: string } } = {
-            'APPOINTMENT_SCHEDULED': { icon: '📅', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
-            'APPOINTMENT_UPDATE': { icon: '🔄', color: 'text-yellow-400', bgColor: 'bg-yellow-500/20' },
-            'APPOINTMENT_COMPLETED': { icon: '✅', color: 'text-green-400', bgColor: 'bg-green-500/20' },
-            'APPOINTMENT_CANCELLED': { icon: '❌', color: 'text-red-400', bgColor: 'bg-red-500/20' },
-            'APPOINTMENT_REMINDER': { icon: '⏰', color: 'text-orange-400', bgColor: 'bg-orange-500/20' },
-            'EMPLOYEE_ASSIGNED': { icon: '👤', color: 'text-cyan-400', bgColor: 'bg-cyan-500/20' },
-            'FEEDBACK_REQUEST': { icon: '⭐', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
-            'SYSTEM_UPDATE': { icon: '🔔', color: 'text-gray-400', bgColor: 'bg-gray-500/20' }
-        };
-        
-        return iconMap[type] || { icon: '🔔', color: 'text-gray-400', bgColor: 'bg-gray-500/20' };
-    };
+  // 🔹 Initialize WebSocket connection
+  useEffect(() => {
+    // Load initial notifications
+    fetchNotifications();
 
-    const formatTimeAgo = (dateString: string) => {
-        const date = new Date(dateString);
-        const now = new Date();
-        const diffMs = now.getTime() - date.getTime();
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMins / 60);
-        const diffDays = Math.floor(diffHours / 24);
+    // WebSocket setup using @stomp/stompjs + SockJS (browser-friendly)
+    const client = new Client({
+      // using SockJS via webSocketFactory because backend exposes SockJS endpoint
+      webSocketFactory: () => new SockJS("http://localhost:8083/ws"),
+      reconnectDelay: 5000,
+      onConnect: () => {
+        console.log("✅ Connected to WebSocket");
 
-        if (diffMins < 1) return "Just now";
-        if (diffMins < 60) return `${diffMins}m ago`;
-        if (diffHours < 24) return `${diffHours}h ago`;
-        if (diffDays < 7) return `${diffDays}d ago`;
-        
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    };
+        // Subscribe to real-time topic for this user
+        client.subscribe(
+          `/topic/notifications/${userEmail}`,
+          (message: any) => {
+            if (!message?.body) return;
+            const newNotification = JSON.parse(message.body as string);
+            console.log("📩 New notification received:", newNotification);
 
-    const handleMarkAsRead = (id: string) => {
-        // Backend Integration: PATCH /api/notifications/{id}/read
-        setNotifications(prev => prev.map(n => 
-            n.id === id ? { ...n, isRead: true } : n
-        ));
-    };
-
-    const handleMarkAllRead = () => {
-        // Backend Integration: PATCH /api/notifications/mark-all-read
-        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    };
-
-    const handleDelete = (id: string) => {
-        // Backend Integration: DELETE /api/notifications/{id}
-        if (confirm('Delete this notification?')) {
-            setNotifications(prev => prev.filter(n => n.id !== id));
-        }
-    };
-
-    const handleNotificationClick = (notification: typeof notifications[0]) => {
-        if (!notification.isRead) {
-            handleMarkAsRead(notification.id);
-        }
-        if (notification.link) {
-            router.push(notification.link);
-        }
-    };
-
-    const filteredNotifications = notifications.filter(n => {
-        if (showUnreadOnly && n.isRead) return false;
-        if (filter === 'all') return true;
-        return n.type === filter;
+            // Add new notification instantly to the list
+            setNotifications((prev) => [newNotification, ...prev]);
+          }
+        );
+      },
+      onStompError: (frame: any) => {
+        console.error("STOMP error", frame);
+      },
     });
 
-    const unreadCount = notifications.filter(n => !n.isRead).length;
+    client.activate();
+    setStompClient(client);
 
-    const filterOptions = [
-        { id: 'all', label: 'All', count: notifications.length },
-        { id: 'APPOINTMENT_SCHEDULED', label: 'Appointments', count: notifications.filter(n => n.type.includes('APPOINTMENT')).length },
-        { id: 'FEEDBACK_REQUEST', label: 'Feedback', count: notifications.filter(n => n.type === 'FEEDBACK_REQUEST').length },
-        { id: 'SYSTEM_UPDATE', label: 'System', count: notifications.filter(n => n.type === 'SYSTEM_UPDATE').length }
-    ];
+    // Cleanup when component unmounts
+    return () => {
+      try {
+        client.deactivate();
+        console.log("❌ Disconnected from WebSocket");
+      } catch (e) {
+        /* noop */
+      }
+    };
+  }, [userEmail]);
 
-    return (
-        <div className="min-h-screen bg-gray-950">
-            <Navbar />
-            
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-white mb-2">Notifications</h1>
-                        <p className="text-gray-400">
-                            {unreadCount > 0 ? `${unreadCount} unread notifications` : 'All caught up!'}
-                        </p>
-                    </div>
-                    {unreadCount > 0 && (
-                        <button
-                            onClick={handleMarkAllRead}
-                            className="px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 rounded-xl transition text-sm font-medium"
-                        >
-                            Mark all as read
-                        </button>
-                    )}
-                </div>
+  // 🔹 Mark one notification as read
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      await fetch(`http://localhost:8083/api/notifications/${id}/read`, {
+        method: "PATCH",
+      });
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, status: "READ" } : n))
+      );
+    } catch (error) {
+      console.error("Error marking as read:", error);
+    }
+  };
 
-                {/* Filters */}
-                <div className="flex items-center gap-4 mb-8 flex-wrap">
-                    <div className="flex gap-2 flex-1">
-                        {filterOptions.map((option) => (
-                            <button
-                                key={option.id}
-                                onClick={() => setFilter(option.id)}
-                                className={`px-4 py-2 rounded-xl font-semibold text-sm transition ${
-                                    filter === option.id
-                                        ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
-                                        : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
-                                }`}
-                            >
-                                {option.label}
-                                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                                    filter === option.id ? 'bg-white/20' : 'bg-gray-800'
-                                }`}>
-                                    {option.count}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                    <label className="flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={showUnreadOnly}
-                            onChange={(e) => setShowUnreadOnly(e.target.checked)}
-                            className="w-4 h-4 text-cyan-600 bg-gray-800 border-gray-700 rounded focus:ring-cyan-500"
-                        />
-                        <span className="text-sm text-gray-400">Unread only</span>
-                    </label>
-                </div>
+  // 🔹 Click on a notification (load full details)
+  const handleNotificationClick = async (id: number, status: string) => {
+    try {
+      if (status === "UNREAD") await handleMarkAsRead(id);
+      const res = await fetch(
+        `http://localhost:8083/api/notifications/detail/${id}`
+      );
+      const detail = await res.json();
+      setSelectedNotification(detail);
+    } catch (error) {
+      console.error("Error fetching notification detail:", error);
+    }
+  };
 
-                {/* Notifications List */}
-                {filteredNotifications.length > 0 ? (
-                    <div className="space-y-3">
-                        {filteredNotifications.map((notification) => {
-                            const iconData = getNotificationIcon(notification.type);
-                            
-                            return (
-                                <div
-                                    key={notification.id}
-                                    onClick={() => handleNotificationClick(notification)}
-                                    className={`bg-gray-900 rounded-xl border transition p-4 cursor-pointer ${
-                                        notification.isRead 
-                                            ? 'border-gray-800 hover:border-gray-700' 
-                                            : 'border-cyan-500/50 hover:border-cyan-500 bg-cyan-500/5'
-                                    }`}
-                                >
-                                    <div className="flex items-start gap-4">
-                                        {/* Icon */}
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${iconData.bgColor}`}>
-                                            {iconData.icon}
-                                        </div>
-                                        
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div>
-                                                    <h3 className={`font-bold mb-1 ${
-                                                        notification.isRead ? 'text-white' : 'text-cyan-400'
-                                                    }`}>
-                                                        {notification.title}
-                                                    </h3>
-                                                    <p className="text-gray-400 text-sm">{notification.message}</p>
-                                                </div>
-                                                {!notification.isRead && (
-                                                    <div className="w-2 h-2 bg-cyan-500 rounded-full flex-shrink-0 mt-1"></div>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center justify-between mt-2">
-                                                <p className="text-gray-500 text-xs">{formatTimeAgo(notification.time)}</p>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDelete(notification.id);
-                                                    }}
-                                                    className="p-1.5 hover:bg-gray-800 rounded-lg transition text-gray-500 hover:text-red-400"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m0 0L2.974 12m-2.605 6.324A12.074 12.074 0 015.121 19.12l12.803-12.801a12.074 12.074 0 013.712 0L12.864 4.111c-.442-1.757-1.365-3.028-3.056-3.028-1.767 0-3.13 1.16-3.543 2.903a3.505 3.505 0 00-1.047 3.553L8.56 12.06l-1.61 4.312-.838 2.277L15.26 9m-4.788-5.5L12.864 4.111c.442-1.757 1.365-3.028 3.056-3.028 1.767 0 3.13 1.16 3.543 2.903a3.505 3.505 0 001.047 3.553L12.06 12 15.26 9m0 0l3.544 3.544M12.06 12L8.56 8.5" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
-                        <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 text-gray-500">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                            </svg>
-                        </div>
-                        <h3 className="text-white text-xl font-bold mb-2">No notifications</h3>
-                        <p className="text-gray-400">You're all caught up! No new notifications to display.</p>
-                    </div>
-                )}
+  // 🔹 Mark all as read
+  const handleMarkAllRead = async () => {
+    try {
+      await fetch(
+        `http://localhost:8083/api/notifications/mark-all-read?userEmail=${userEmail}`,
+        {
+          method: "PATCH",
+        }
+      );
+      setNotifications((prev) => prev.map((n) => ({ ...n, status: "READ" })));
+    } catch (error) {
+      console.error("Error marking all as read:", error);
+    }
+  };
+
+  // 🔹 Delete notification
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this notification?")) return;
+    try {
+      await fetch(`http://localhost:8083/api/notifications/${id}`, {
+        method: "DELETE",
+      });
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      if (selectedNotification?.id === id) setSelectedNotification(null);
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+    }
+  };
+
+  // 🔹 Format time ago
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  // 🔹 Filter unread if checkbox checked
+  const filteredNotifications = notifications.filter((n) =>
+    showUnreadOnly ? n.status === "UNREAD" : true
+  );
+  const unreadCount = notifications.filter((n) => n.status === "UNREAD").length;
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white">
+      <Navbar />
+
+      <div className="max-w-7xl mx-auto px-4 py-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: Notification List */}
+        <div className="lg:col-span-2">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+            <div>
+              <h1 className="text-3xl font-semibold mb-1">Notifications</h1>
+              <p className="text-gray-400 text-sm">
+                {unreadCount > 0
+                  ? `${unreadCount} unread notifications`
+                  : "You're all caught up!"}
+              </p>
             </div>
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllRead}
+                className="px-5 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 rounded-xl text-sm transition"
+              >
+                Mark all as read
+              </button>
+            )}
+          </div>
+
+          {/* Filter */}
+          <div className="flex items-center gap-3 mb-6">
+            <label className="flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showUnreadOnly}
+                onChange={(e) => setShowUnreadOnly(e.target.checked)}
+                className="w-4 h-4 text-cyan-600 bg-gray-800 border-gray-700 rounded focus:ring-cyan-500"
+              />
+              <span className="text-sm text-gray-400">Unread only</span>
+            </label>
+          </div>
+
+          {/* List */}
+          {loading ? (
+            <p className="text-gray-400 text-center">
+              Loading notifications...
+            </p>
+          ) : filteredNotifications.length > 0 ? (
+            <div className="space-y-3">
+              {filteredNotifications.map((n) => (
+                <div
+                  key={n.id}
+                  onClick={() => handleNotificationClick(n.id, n.status)}
+                  className={`rounded-xl border p-4 cursor-pointer transition-all ${
+                    selectedNotification?.id === n.id
+                      ? "border-cyan-400 bg-cyan-500/10"
+                      : n.status === "UNREAD"
+                      ? "border-cyan-500/50 bg-cyan-500/5 hover:bg-cyan-500/10"
+                      : "border-gray-800 bg-gray-900 hover:bg-gray-850 hover:border-gray-700"
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3
+                        className={`font-semibold mb-1 ${
+                          n.status === "UNREAD"
+                            ? "text-cyan-400"
+                            : "text-gray-200"
+                        }`}
+                      >
+                        {n.title}
+                      </h3>
+                      <p className="text-gray-400 text-sm line-clamp-2">
+                        {n.message}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(n.id);
+                      }}
+                      className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-gray-800 transition"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                  <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+                    <p>{formatTimeAgo(n.createdAt)}</p>
+                    {n.status === "UNREAD" && (
+                      <span className="text-cyan-400 text-[11px] font-medium">
+                        ● Unread
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
+              <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+                🔔
+              </div>
+              <h3 className="text-xl font-semibold mb-2">No notifications</h3>
+              <p className="text-gray-400 text-sm">
+                You&apos;re all caught up! No new notifications to display.
+              </p>
+            </div>
+          )}
         </div>
-    );
+
+        {/* Right: Detail Panel */}
+        <div className="hidden lg:block">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 h-full">
+            {selectedNotification ? (
+              <>
+                <h2 className="text-2xl font-semibold text-cyan-400 mb-2">
+                  {selectedNotification.title}
+                </h2>
+                <p className="text-gray-400 text-sm mb-4">
+                  {new Date(selectedNotification.createdAt).toLocaleString()}
+                </p>
+                <hr className="border-gray-800 mb-4" />
+                <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
+                  {selectedNotification.message}
+                </p>
+                <div className="mt-6 flex justify-end">
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      selectedNotification.status === "READ"
+                        ? "bg-gray-800 text-gray-400"
+                        : "bg-cyan-600/20 text-cyan-400"
+                    }`}
+                  >
+                    {selectedNotification.status}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                <div className="text-4xl mb-3">💬</div>
+                <p>Select a notification to view details</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
-
-
-

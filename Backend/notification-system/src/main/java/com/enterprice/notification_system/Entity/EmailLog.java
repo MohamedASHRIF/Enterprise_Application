@@ -4,6 +4,7 @@ package com.enterprice.notification_system.Entity;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.Column;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -18,7 +19,10 @@ public class EmailLog {
 
     private String toMail;
     private String subject;
+    
+    @Column(length = 2000)
     private String body;
+    
     private String staus;
     private LocalDate date;
 

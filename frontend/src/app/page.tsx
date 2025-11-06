@@ -7,11 +7,13 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   console.log(email, password);
 
   const handleLogin = async (e: React.FormEvent)=>{
     e.preventDefault();
     setIsLoading(true);
+    setErrorMessage("");
 
     try {
       const res= await api.post('/auth/login', {email:email,password:password});
@@ -63,9 +65,18 @@ export default function Home() {
         throw new Error('Invalid response from server');
       }
     }
-    catch (err){
+    catch (err) {
         console.error('Login error:', err);
-        alert('Email or Password is mismatch...');
+        const error = err as { response?: { status?: number; data?: { error?: string } } };
+        
+        // Check if it's an email verification error (403)
+        if (error.response?.status === 403) {
+          setErrorMessage('Email not verified! Please check your email and verify your account before logging in.');
+        } else if (error.response?.data?.error) {
+          setErrorMessage(error.response.data.error);
+        } else {
+          setErrorMessage('Email or Password is incorrect. Please try again.');
+        }
     } finally {
       setIsLoading(false);
     }
@@ -82,6 +93,17 @@ export default function Home() {
           <h1 className="text-4xl font-extrabold text-gray-900 mb-3 tracking-tight">Welcome Back</h1>
           <p className="text-gray-600 font-medium">Sign in to your account</p>
         </div>
+
+        {errorMessage && (
+          <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl relative z-10">
+            <div className="flex items-start gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-red-800 font-medium text-sm">{errorMessage}</p>
+            </div>
+          </div>
+        )}
         
         <form onSubmit={handleLogin} className="space-y-6 relative z-10">
           <div className="flex flex-col gap-2.5">
@@ -134,7 +156,7 @@ export default function Home() {
               <input type="checkbox" className="w-4 h-4 text-indigo-700 border-gray-400 rounded focus:ring-2 focus:ring-indigo-500 cursor-pointer" />
               <span className="text-gray-700 font-medium group-hover:text-gray-900 transition-colors">Remember me</span>
             </label>
-            <a className="text-indigo-700 hover:text-indigo-900 font-semibold transition-colors hover:underline" href="#">Forgot Password?</a>
+            <a className="text-indigo-700 hover:text-indigo-900 font-semibold transition-colors hover:underline" href="/forgot-password">Forgot Password?</a>
           </div>
 
           <button 
