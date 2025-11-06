@@ -14,6 +14,11 @@ RUN npm ci --silent
 
 # Copy app sources and build
 COPY . .
+
+# Set build-time environment variables (for client-side, use localhost since browser runs on host)
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8081/api
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+
 RUN npm run build
 
 # Production image

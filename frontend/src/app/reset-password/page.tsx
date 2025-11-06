@@ -1,10 +1,10 @@
 "use client"
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import api from "../api/api";
 import Link from "next/link";
 
-export default function ResetPassword() {
+function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [token, setToken] = useState("");
@@ -206,5 +206,27 @@ export default function ResetPassword() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ResetPassword() {
+  return (
+    <Suspense fallback={
+      <div className="w-full h-screen flex justify-center items-center bg-center bg-cover bg-[url('/Login.png')]" style={{backgroundImage: "url('/Login.png')"}}>
+        <div className="bg-gradient-to-br from-white/98 via-white/96 to-white/98 backdrop-blur-xl flex flex-col w-full max-w-md mx-4 p-10 rounded-3xl shadow-2xl border border-gray-200/50 relative overflow-hidden">
+          <div className="text-center mb-10 relative z-10">
+            <div className="mb-4 flex justify-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-full flex items-center justify-center shadow-lg">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
+              </div>
+            </div>
+            <h1 className="text-4xl font-extrabold text-gray-900 mb-3 tracking-tight">Loading...</h1>
+            <p className="text-gray-600 font-medium">Please wait...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
