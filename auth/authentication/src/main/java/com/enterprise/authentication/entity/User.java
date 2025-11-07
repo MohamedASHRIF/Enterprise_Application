@@ -46,7 +46,23 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
+    // --- NEW FIELD ---
+    // This field will store "MECHANIC", "TECHNICIAN", "GENERAL EMPLOYEE", etc.
+    @Column(length = 50)
+    private String jobTitle;
+
+    // --- END NEW FIELD ---
+
     private Boolean isActive = true;
+    
+    // Email verification fields
+    private Boolean emailVerified = false;
+    private String verificationToken;
+    private LocalDateTime verificationTokenExpiry;
+    
+    // Password reset fields
+    private String passwordResetToken;
+    private LocalDateTime passwordResetTokenExpiry;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -119,6 +135,16 @@ public class User {
         this.role = role;
     }
 
+    // --- GETTER/SETTER FOR NEW FIELD ---
+    public String getJobTitle() {
+        return jobTitle;
+    }
+
+    public void setJobTitle(String jobTitle) {
+        this.jobTitle = jobTitle;
+    }
+    // --- END GETTER/SETTER ---
+
     public Boolean getIsActive() {
         return isActive;
     }
@@ -141,5 +167,47 @@ public class User {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    // Email verification getters and setters
+    public Boolean getEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(Boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
+
+    public String getVerificationToken() {
+        return verificationToken;
+    }
+
+    public void setVerificationToken(String verificationToken) {
+        this.verificationToken = verificationToken;
+    }
+
+    public LocalDateTime getVerificationTokenExpiry() {
+        return verificationTokenExpiry;
+    }
+
+    public void setVerificationTokenExpiry(LocalDateTime verificationTokenExpiry) {
+        this.verificationTokenExpiry = verificationTokenExpiry;
+    }
+
+    // Password reset getters and setters
+    public String getPasswordResetToken() {
+        return passwordResetToken;
+    }
+
+    public void setPasswordResetToken(String passwordResetToken) {
+        this.passwordResetToken = passwordResetToken;
+    }
+
+    public LocalDateTime getPasswordResetTokenExpiry() {
+        return passwordResetTokenExpiry;
+    }
+
+    public void setPasswordResetTokenExpiry(LocalDateTime passwordResetTokenExpiry) {
+        this.passwordResetTokenExpiry = passwordResetTokenExpiry;
     }
 }

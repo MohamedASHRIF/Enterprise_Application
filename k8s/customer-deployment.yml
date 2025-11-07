@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer
+  namespace: enterprise-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: customer
+  template:
+    metadata:
+      labels:
+        app: customer
+    spec:
+      containers:
+      - name: customer
+        image: enterprise-customer:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+          - containerPort: 8085
+        env:
+          - name: SPRING_DATASOURCE_URL
+            value: "jdbc:postgresql://ep-weathered-paper-a1e2pqli-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require"
+          - name: SPRING_DATASOURCE_USERNAME
+            value: "neondb_owner"
+          - name: SPRING_DATASOURCE_PASSWORD
+            value: "npg_7qejET0MJmlF"
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8085
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8085
+          initialDelaySeconds: 30
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer
+  namespace: enterprise-dev
+spec:
+  selector:
+    app: customer
+  ports:
+    - protocol: TCP
+      port: 8085
+      targetPort: 8085
+      nodePort: 31085
+  type: NodePort
+
+

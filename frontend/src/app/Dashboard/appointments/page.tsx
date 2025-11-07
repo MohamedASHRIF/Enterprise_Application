@@ -1,5 +1,6 @@
 "use client"
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getAppointmentsByCustomer, cancelAppointment } from '@/app/api/customerApi';
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 
@@ -9,87 +10,41 @@ export default function AppointmentsPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState('upcoming');
     
-    // Mock Data - Replace with backend API calls
-    const [appointments] = useState({
-        upcoming: [
-            {
-                id: "APT-001",
-                vehicle: "Toyota Camry",
-                vehicleId: 1,
-                service: "Oil Change",
-                serviceId: 1,
-                date: "2024-12-20",
-                time: "10:00 AM",
-                status: "SCHEDULED",
-                employee: "Mike Johnson",
-                employeeId: 1,
-                estimatedDuration: "30 min",
-                price: "$29.99"
-            },
-            {
-                id: "APT-002",
-                vehicle: "Honda Civic",
-                vehicleId: 2,
-                service: "Tire Rotation",
-                serviceId: 2,
-                date: "2024-12-22",
-                time: "2:00 PM",
-                status: "SCHEDULED",
-                employee: "Sarah Williams",
-                employeeId: 2,
-                estimatedDuration: "15 min",
-                price: "$19.99"
+    // Appointments state (loaded from backend)
+    const [appointments, setAppointments] = useState<any>({ upcoming: [], inProgress: [], completed: [] });
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const load = async () => {
+            setIsLoading(true);
+            try {
+                const stored = localStorage.getItem('user');
+                if (!stored) {
+                    console.debug('appointments: no localStorage user found');
+                    return setAppointments({ upcoming: [], inProgress: [], completed: [] });
+                }
+                const user = JSON.parse(stored);
+                const customerId = user.id || user.userId || user.customerId;
+                console.debug('appointments: stored user:', user, 'resolved customerId:', customerId);
+                if (!customerId) {
+                    console.debug('appointments: could not resolve customerId from localStorage.user');
+                    return setAppointments({ upcoming: [], inProgress: [], completed: [] });
+                }
+
+                const list = await getAppointmentsByCustomer(Number(customerId));
+                console.debug('appointments: backend returned', list);
+                const upcoming = (list || []).filter((a: any) => a.status === 'SCHEDULED');
+                const inProgress = (list || []).filter((a: any) => a.status === 'IN_PROGRESS' || a.status === 'PAUSED');
+                const completed = (list || []).filter((a: any) => a.status === 'COMPLETED' || a.status === 'CANCELLED');
+                setAppointments({ upcoming, inProgress, completed });
+            } catch (e) {
+                console.error('Failed to load appointments', e);
+            } finally {
+                setIsLoading(false);
             }
-        ],
-        inProgress: [
-            {
-                id: "APT-003",
-                vehicle: "Tesla Model 3",
-                vehicleId: 3,
-                service: "Brake Inspection",
-                serviceId: 3,
-                date: "2024-12-18",
-                time: "11:00 AM",
-                status: "IN_PROGRESS",
-                employee: "John Smith",
-                employeeId: 3,
-                estimatedDuration: "45 min",
-                price: "$49.99"
-            }
-        ],
-        completed: [
-            {
-                id: "APT-004",
-                vehicle: "Ford F-150",
-                vehicleId: 4,
-                service: "Full Service",
-                serviceId: 5,
-                date: "2024-12-10",
-                time: "9:00 AM",
-                status: "COMPLETED",
-                employee: "Mike Johnson",
-                employeeId: 1,
-                completedAt: "2024-12-10T13:00:00",
-                price: "$199.99",
-                rating: 5
-            },
-            {
-                id: "APT-005",
-                vehicle: "BMW 3 Series",
-                vehicleId: 5,
-                service: "AC Service",
-                serviceId: 6,
-                date: "2024-12-05",
-                time: "10:30 AM",
-                status: "COMPLETED",
-                employee: "Sarah Williams",
-                employeeId: 2,
-                completedAt: "2024-12-05T12:00:00",
-                price: "$79.99",
-                rating: 4
-            }
-        ]
-    });
+        };
+        load();
+    }, []);
 
     const getStatusBadge = (status: string) => {
         const statusConfig: { [key: string]: { color: string; text: string; icon: string } } = {
@@ -110,14 +65,52 @@ export default function AppointmentsPage() {
         );
     };
 
+    // Helpers to safely extract vehicle label and initial
+    const vehicleLabelFor = (vehicle: any) => {
+        if (typeof vehicle === 'string') return vehicle;
+        if (!vehicle) return 'Unknown Vehicle';
+        if (vehicle.make) return `${vehicle.make} ${vehicle.model || ''}`.trim();
+        return vehicle.name || 'Unknown Vehicle';
+    };
+
+    const vehicleInitialFor = (vehicle: any) => {
+        const label = vehicleLabelFor(vehicle);
+        return label && label.length > 0 ? label.split(' ')[0].charAt(0) : '?';
+    };
+
+    const serviceNameFor = (svc: any) => {
+        if (!svc) return 'Unknown Service';
+        if (typeof svc === 'string') return svc;
+        if (svc.name) return svc.name;
+        // fallback: try id or JSON
+        return svc.id ? String(svc.id) : JSON.stringify(svc);
+    };
+
     const handleViewDetails = (id: string) => {
         router.push(`/Dashboard/appointments/${id}`);
     };
 
-    const handleCancelAppointment = (id: string) => {
-        // Backend Integration: PATCH /api/appointments/{id}/cancel
-        if (confirm('Are you sure you want to cancel this appointment?')) {
-            alert(`Cancel appointment ${id} - Backend integration needed`);
+    const handleCancelAppointment = async (id: number | string) => {
+        if (!confirm('Are you sure you want to cancel this appointment?')) return;
+        try {
+            await cancelAppointment(Number(id));
+            // Refresh
+            const stored = localStorage.getItem('user');
+            if (stored) {
+                const user = JSON.parse(stored);
+                const customerId = user.id || user.userId || user.customerId;
+                if (customerId) {
+                    const list = await getAppointmentsByCustomer(Number(customerId));
+                    const upcoming = (list || []).filter((a: any) => a.status === 'SCHEDULED');
+                    const inProgress = (list || []).filter((a: any) => a.status === 'IN_PROGRESS' || a.status === 'PAUSED');
+                    const completed = (list || []).filter((a: any) => a.status === 'COMPLETED' || a.status === 'CANCELLED');
+                    setAppointments({ upcoming, inProgress, completed });
+                }
+            }
+            alert('Appointment cancelled');
+        } catch (err) {
+            console.error('Cancel failed', err);
+            alert('Failed to cancel appointment');
         }
     };
 
@@ -183,7 +176,7 @@ export default function AppointmentsPage() {
                 {/* Appointments List */}
                 {displayAppointments.length > 0 ? (
                     <div className="space-y-4">
-                        {displayAppointments.map((apt) => (
+                        {displayAppointments.map((apt: any) => (
                             <div
                                 key={apt.id}
                                 className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden hover:border-cyan-500/50 transition"
@@ -193,16 +186,16 @@ export default function AppointmentsPage() {
                                         <div className="flex items-start gap-4 flex-1">
                                             {/* Vehicle Icon */}
                                             <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center text-white text-xl font-bold">
-                                                {apt.vehicle.split(' ')[0].charAt(0)}
+                                                {vehicleInitialFor(apt.vehicle)}
                                             </div>
                                             
                                             {/* Details */}
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-3 mb-2">
-                                                    <h3 className="text-white font-bold text-lg">{apt.service}</h3>
+                                                    <h3 className="text-white font-bold text-lg">{serviceNameFor(apt.service)}</h3>
                                                     {getStatusBadge(apt.status)}
                                                 </div>
-                                                <p className="text-gray-400 text-sm mb-1">{apt.vehicle}</p>
+                                                <p className="text-gray-400 text-sm mb-1">{vehicleLabelFor(apt.vehicle)}</p>
                                                 <div className="flex items-center gap-4 text-sm text-gray-400">
                                                     <span className="flex items-center gap-1">
                                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">

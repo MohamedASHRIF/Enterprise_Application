@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification
+  namespace: enterprise-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification
+  template:
+    metadata:
+      labels:
+        app: notification
+    spec:
+      containers:
+      - name: notification
+        image: enterprise-notification:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+          - containerPort: 8083
+        env:
+            # Notification service does not require a database in this deployment.
+            # No SPRING_DATASOURCE_* environment variables are set.
+        readinessProbe:
+          tcpSocket:
+            port: 8083
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 2
+        livenessProbe:
+          tcpSocket:
+            port: 8083
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification
+  namespace: enterprise-dev
+spec:
+  selector:
+    app: notification
+  ports:
+    - protocol: TCP
+      port: 8083
+      targetPort: 8083
+      nodePort: 31087
+  type: NodePort

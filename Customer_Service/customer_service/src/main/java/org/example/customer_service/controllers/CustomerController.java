@@ -7,6 +7,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/customers")
@@ -14,11 +16,14 @@ public class CustomerController {
 
     @Autowired
     private CustomerService customerService;
+    private static final Logger logger = LoggerFactory.getLogger(CustomerController.class);
 
     // Create or update customer
     @PostMapping
     public ResponseEntity<Customer> createOrUpdateCustomer(@RequestBody Customer customer) {
+        logger.info("Customer-service: received createOrUpdateCustomer request payload={}", customer);
         Customer savedCustomer = customerService.saveCustomer(customer);
+        logger.info("Customer-service: saved customer id={} email={}", savedCustomer.getId(), savedCustomer.getEmail());
         return ResponseEntity.ok(savedCustomer);
     }
 

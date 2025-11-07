@@ -3,8 +3,10 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -20,19 +22,19 @@ public class    Vehicle {
     private String make;
     private String model;
     private int year;
+    private String color;
 
     @Column(unique = true, nullable = false)
-    private String registrationNo;
+    private String plate;
 
-    // Many vehicles belong to one customer
     @Column(name = "customer_id", nullable = false)
     private long customerId;
 
-    // One vehicle → many appointments
-    @OneToMany(mappedBy = "vehicleId", cascade = CascadeType.ALL)
-    private List<Appointment> appointments;
+    @Column(unique = true, nullable = true)
+    @JsonAlias({"VIN", "vin"})
+    private String VIN;
 
-//    // One vehicle → many modifications
-//    @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL)
-//    private List<Modification> modifications;
+    @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL)
+    @JsonManagedReference
+    private List<Appointment> appointments = new ArrayList<>();
 }

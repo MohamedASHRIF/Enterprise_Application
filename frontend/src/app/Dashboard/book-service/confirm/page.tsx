@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import api from "@/app/api/api";
+import { bookAppointment } from "@/app/api/customerApi";
 
 // Backend Integration: POST /api/appointments
 
@@ -24,27 +25,50 @@ export default function ConfirmBookingPage() {
         setIsLoading(true);
         
         try {
-            // Backend Integration: POST /api/appointments
-            // const res = await api.post('/appointments', {
-            //     vehicleId: bookingData.vehicle.id,
-            //     serviceId: bookingData.service.id,
-            //     date: bookingData.date,
-            //     time: bookingData.time,
-            //     customRequest: bookingData.customRequest
-            // });
-            
-            // Mock success
-            console.log('Booking confirmed:', bookingData);
+            // Backend Integration: POST /api/appointments/book
+            // Build payload expected by customer-service AppointmentController.bookAppointment
+            const storedUser = localStorage.getItem('user');
+            if (!storedUser) throw new Error('User not authenticated');
+            const user = JSON.parse(storedUser);
+            const customerId = user.id || user.userId || user.customerId;
+            if (!customerId) throw new Error('Could not determine customer id from stored user');
+
+            const payload: any = {
+                customerId: customerId,
+                vehicle: { id: bookingData.vehicle.id },
+                service: { id: bookingData.service.id },
+                appointmentDate: bookingData.date,
+                appointmentTime: bookingData.time,
+                status: 'SCHEDULED'
+            };
+            if (bookingData.customRequest) {
+                payload.notes = [bookingData.customRequest];
+            }
+
+            const res = await bookAppointment(payload);
+            console.log('Booking response:', res);
+
             alert('Appointment booked successfully!');
-            
+
             // Clear session storage
             sessionStorage.removeItem('bookingData');
-            
+
             // Redirect to appointments page
             router.push('/Dashboard/appointments');
         } catch (error) {
-            console.error('Error booking appointment:', error);
-            alert('Failed to book appointment. Please try again.');
+                // Log detailed axios error information to help diagnose 403/401 issues
+                console.error('Error booking appointment:', error);
+                if ((error as any).response) {
+                    console.error('Status:', (error as any).response.status);
+                    console.error('Response body:', (error as any).response.data);
+                    alert(`Failed to book appointment: ${ (error as any).response.status } - ${JSON.stringify((error as any).response.data)}`);
+                } else if ((error as any).request) {
+                    console.error('No response received, request:', (error as any).request);
+                    alert('Failed to book appointment: no response from server.');
+                } else {
+                    console.error('Error message:', (error as any).message || error);
+                    alert('Failed to book appointment. Please try again.');
+                }
         } finally {
             setIsLoading(false);
         }
