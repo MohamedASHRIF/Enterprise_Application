@@ -169,6 +169,17 @@ export const getLoggedInEmployee = async (email: string): Promise<any> => {
     }
 };
 
+// Get employee details for an appointment from employee service
+export const getEmployeeForAppointment = async (appointmentId: number): Promise<any> => {
+    try {
+        const response = await employeeApi.get<ApiResponse<any>>(`/assignments/by-appointment/${appointmentId}/employee`);
+        return response.data.data; // Returns UserDto or null
+    } catch (error) {
+        console.warn('Error fetching employee for appointment:', appointmentId, error);
+        return null; // Graceful degradation
+    }
+};
+
 // Fetch appointment details from customer service (needed to get customer, vehicle, service info)
 export const getAppointmentDetails = async (appointmentId: number): Promise<any> => {
     try {
