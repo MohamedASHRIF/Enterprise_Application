@@ -42,7 +42,10 @@ public class AssignmentService {
                 .status(AssignmentStatus.ASSIGNED)
                 .build();
 
-        assignmentRepository.save(assignment);
+        Assignment saved = assignmentRepository.save(assignment);
+
+        // Sync appointment status to SCHEDULED when assignment is created
+        syncAppointmentStatus(appointmentId, AssignmentStatus.ASSIGNED);
 
         // Send notification to employee (email + SMS)
         notificationClient.sendEmail(
@@ -61,7 +64,7 @@ public class AssignmentService {
 
         log.info("📩 Notification sent for manual assignment to employee {}", employeeId);
 
-        return assignment;
+        return saved;
     }
 
     // ✅ Auto-assign based on availability and job title (with fallback)
@@ -102,8 +105,11 @@ public class AssignmentService {
                 .status(AssignmentStatus.ASSIGNED)
                 .build();
 
-        assignmentRepository.save(assignment);
+        Assignment saved = assignmentRepository.save(assignment);
         log.info("✅ Assigned appointment {} to employee {} (Job: {})", appointmentId, employeeId, requiredJobTitle);
+
+        // Sync appointment status to SCHEDULED when assignment is created
+        syncAppointmentStatus(appointmentId, AssignmentStatus.ASSIGNED);
 
         // Send notification to employee
         notificationClient.sendEmail(
@@ -120,7 +126,7 @@ public class AssignmentService {
         // Send notification to customer
         sendCustomerNotification(appointmentId, appointmentDate);
 
-        return assignment;
+        return saved;
     }
 
     // ✅ Auto-assign using AppointmentRequestDto
@@ -146,7 +152,56 @@ public class AssignmentService {
         Assignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new RuntimeException("Assignment not found"));
         assignment.setStatus(status);
-        return assignmentRepository.save(assignment);
+        Assignment saved = assignmentRepository.save(assignment);
+        
+        // Sync appointment status in customer service
+        syncAppointmentStatus(assignment.getAppointmentId(), status);
+        
+        return saved;
+    }
+    
+    /**
+     * Synchronize appointment status in customer service when assignment status changes.
+     * Maps assignment statuses to appointment statuses.
+     */
+    private void syncAppointmentStatus(Long appointmentId, AssignmentStatus assignmentStatus) {
+        try {
+            // Map assignment status to appointment status
+            String appointmentStatus = mapAssignmentStatusToAppointmentStatus(assignmentStatus);
+            if (appointmentStatus == null) {
+                log.debug("No appointment status mapping for assignment status: {}", assignmentStatus);
+                return;
+            }
+            
+            // Update appointment status in customer service (best-effort, don't fail if customer service is down)
+            boolean success = customerServiceClient.updateAppointmentStatus(appointmentId, appointmentStatus);
+            if (success) {
+                log.info("✅ Synced appointment {} status to {} (from assignment status {})", 
+                        appointmentId, appointmentStatus, assignmentStatus);
+            } else {
+                log.warn("⚠️ Failed to sync appointment {} status to {} (assignment status: {})", 
+                        appointmentId, appointmentStatus, assignmentStatus);
+            }
+        } catch (Exception e) {
+            // Don't throw - this is a best-effort sync operation
+            log.warn("⚠️ Error syncing appointment {} status (assignment status: {}): {}", 
+                    appointmentId, assignmentStatus, e.getMessage());
+        }
+    }
+    
+    /**
+     * Map assignment status to appointment status.
+     * Assignment statuses: ASSIGNED, IN_PROGRESS, PAUSED, COMPLETED, CANCELLED
+     * Appointment statuses: SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED, AWAITING_PARTS
+     */
+    private String mapAssignmentStatusToAppointmentStatus(AssignmentStatus assignmentStatus) {
+        return switch (assignmentStatus) {
+            case ASSIGNED -> "SCHEDULED"; // Assignment created means appointment is scheduled
+            case IN_PROGRESS -> "IN_PROGRESS"; // Direct mapping
+            case PAUSED -> "IN_PROGRESS"; // Keep as IN_PROGRESS (work paused but still in progress)
+            case COMPLETED -> "COMPLETED"; // Direct mapping
+            case CANCELLED -> "CANCELLED"; // Direct mapping
+        };
     }
 
     // ✅ Get enriched assignments with appointment details for an employee
@@ -242,6 +297,7 @@ public class AssignmentService {
             return null;
         }
     }
+
 
     // ✅ Send notifications to customer when appointment is assigned
     private void sendCustomerNotification(Long appointmentId, LocalDate appointmentDate) {
