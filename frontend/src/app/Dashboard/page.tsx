@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
+import { useRouter } from "next/navigation";
 
 // Backend Integration: Replace with real API calls
 // GET /api/appointments/upcoming
@@ -16,6 +17,9 @@ export default function Dashboard() {
         year: '',
         plate: ''
     });
+    const [userEmail, setUserEmail] = useState(''); 
+    const router = useRouter();
+    
 
     useEffect(() => {
         // Fetch real user data from localStorage
@@ -37,6 +41,7 @@ export default function Dashboard() {
                     ? `${userData.firstName} ${userData.lastName}` 
                     : userData.email || 'User';
                 setUserName(name);
+                setUserEmail(userData.email || '');
             } catch (error) {
                 console.error('Error parsing user data:', error);
                 setUserName('User');
@@ -106,6 +111,15 @@ export default function Dashboard() {
                     <h1 className="text-3xl font-bold text-white mb-2">Welcome Back!</h1>
                     <p className="text-gray-400">Monitor your vehicle services in real-time</p>
                 </div>
+                            
+            {userEmail && (
+                <button
+                    onClick={() => router.push("/Dashboard/chat-room")}
+                    className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl transition"
+                >
+                    💬 start chatting ...
+                </button>
+            )}
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

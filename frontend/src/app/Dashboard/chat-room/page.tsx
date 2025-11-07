@@ -10,14 +10,12 @@
     const [message, setMessage] = useState<string>("");
     const [messages, setMessages] = useState<Array<{ sender: string; content: string }>>([]);
 
-    const customerEmailtest = "john@example.com";
-
     // Fetch chat room from backend
     useEffect(() => {
       const fetchRoom = async () => {
         try {
           const res = await fetch(
-            `http://localhost:8083/api/chat/room/${encodeURIComponent(customerEmailtest)}`
+            `http://localhost:8083/api/chat/room/${encodeURIComponent(customerEmail)}`
           );
           const data = await res.json();
           setRoomId(data.roomId);
