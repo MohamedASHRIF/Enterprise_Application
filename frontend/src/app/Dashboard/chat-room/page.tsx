@@ -1,20 +1,24 @@
-'use client'
+"use client";
 import React, { useEffect, useState } from "react";
 import SockJS from "sockjs-client";
-import Stomp from "stompjs";
+import { Client, IMessage } from "@stomp/stompjs";
 
 const CustomerChatRoom = ({ customerEmail }: { customerEmail: string }) => {
-  const [stompClient, setStompClient] = useState<Stomp.Client | null>(null);
+  const [stompClient, setStompClient] = useState<Client | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [message, setMessage] = useState<string>("");
-  const [messages, setMessages] = useState<Array<{ sender: string; content: string }>>([]);
+  const [messages, setMessages] = useState<
+    Array<{ sender: string; content: string }>
+  >([]);
 
   // 1️⃣ Fetch roomId from backend
   useEffect(() => {
     const fetchRoom = async () => {
       try {
         const res = await fetch(
-          `http://localhost:8083/api/chat/room/${encodeURIComponent(customerEmail)}`
+          `http://localhost:8083/api/chat/room/${encodeURIComponent(
+            customerEmail
+          )}`
         );
         const data = await res.json();
         setRoomId(data.roomId);
@@ -29,23 +33,31 @@ const CustomerChatRoom = ({ customerEmail }: { customerEmail: string }) => {
   useEffect(() => {
     if (!roomId) return;
 
-    const socket = new SockJS("http://localhost:8083/ws");
-    const client = Stomp.over(socket);
+    const client = new Client({
+      webSocketFactory: () => new SockJS("http://localhost:8083/ws"),
+      reconnectDelay: 5000,
+      onConnect: () => {
+        console.log("Connected to WebSocket for room:", roomId);
 
-    client.connect({}, () => {
-      console.log("Connected to WebSocket for room:", roomId);
-
-      client.subscribe(`/topic/room/${roomId}`, (msg) => {
-        const received = JSON.parse(msg.body);
-        setMessages((prev) => [...prev, received]);
-      });
+        client.subscribe(`/topic/room/${roomId}`, (msg: IMessage) => {
+          if (!msg.body) return;
+          const received = JSON.parse(msg.body as string);
+          setMessages((prev) => [...prev, received]);
+        });
+      },
+      onStompError: (frame) => {
+        console.error("STOMP error", frame);
+      },
     });
 
+    client.activate();
     setStompClient(client);
 
     return () => {
-      if (client.connected) {
-        client.disconnect(() => {});
+      try {
+        client.deactivate();
+      } catch (e) {
+        /* noop */
       }
       setStompClient(null);
     };
@@ -59,7 +71,10 @@ const CustomerChatRoom = ({ customerEmail }: { customerEmail: string }) => {
         content: message,
         type: "CHAT",
       };
-      stompClient.send("/app/chat.sendMessage", {}, JSON.stringify(chatMessage));
+      stompClient.publish({
+        destination: "/app/chat.sendMessage",
+        body: JSON.stringify(chatMessage),
+      });
       setMessage("");
     }
   };

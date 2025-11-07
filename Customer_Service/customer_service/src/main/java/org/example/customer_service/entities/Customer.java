@@ -28,13 +28,17 @@ public class Customer {
 
     private String phone;
 
-    private String password;
+    // Link back to Auth service user id (nullable for legacy rows)
+    @Column(name = "user_id", unique = true)
+    private Long userId;
 
     // One customer → many vehicles
     @OneToMany(mappedBy = "customerId", cascade = CascadeType.ALL)
+    @JsonIgnore
     private List<Vehicle> vehicles;
 
     // One customer → many appointments
     @OneToMany(mappedBy = "customerId", cascade = CascadeType.ALL)
+    @JsonIgnore
     private List<Appointment> appointments;
 }

@@ -15,9 +15,13 @@ const employeeApi = axios.create({
 // Add interceptor to attach JWT token to requests
 employeeApi.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            config.headers['Authorization'] = `Bearer ${token}`;
+        // Guard localStorage access for SSR/prerender
+        if (typeof window !== 'undefined' && window.localStorage) {
+            const token = window.localStorage.getItem('token');
+            if (token) {
+                config.headers = config.headers || {};
+                (config.headers as any)['Authorization'] = `Bearer ${token}`;
+            }
         }
         return config;
     },

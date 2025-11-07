@@ -97,7 +97,7 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- JWT support (io.jsonwebtoken) used by JwtAuthFilter -->
+        <!-- JSON Web Token (JJWT) dependencies used by JwtAuthFilter -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
