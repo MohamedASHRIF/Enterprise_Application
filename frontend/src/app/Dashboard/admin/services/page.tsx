@@ -82,9 +82,21 @@ export default function AdminServicesPage() {
         }
         setIsSubmitting(true);
         try {
-            const nextId = services.length ? Math.max(...services.map(s => s.id)) + 1 : 1;
-            setServices([...services, { id: nextId, name: form.name.trim(), description: form.description.trim(), estimateMins: mins, cost: price, active: true, category: form.category.trim() }]);
+            // Call backend API to create service
+            await adminApi.post('/services', {
+                name: form.name.trim(),
+                description: form.description.trim(),
+                estimateMins: mins,
+                cost: price,
+            });
+            // Reset form
             setForm({ name: "", description: "", estimateMins: "", cost: "", category: "" });
+            // Refresh services list from backend (this updates the table and stat cards)
+            await fetchServices();
+            alert('Service created successfully!');
+        } catch (error: any) {
+            console.error('Error creating service:', error);
+            alert(error?.response?.data?.message || 'Failed to create service. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
@@ -92,9 +104,9 @@ export default function AdminServicesPage() {
 
     const toggleActive = async (id: number) => {
         try {
-            const res = await adminApi.patch(`/services/${id}/toggle`);
-            const { active } = res.data || {};
-            setServices(services.map(s => s.id === id ? { ...s, active: typeof active === 'boolean' ? active : !s.active } : s));
+            await adminApi.patch(`/services/${id}/toggle`);
+            // Refresh services list to update table and stat cards
+            await fetchServices();
         } catch (e) {
             console.error('Failed to toggle service', e);
             alert('Failed to toggle service');
@@ -236,7 +248,7 @@ export default function AdminServicesPage() {
                                                 <div className="text-gray-400 text-sm line-clamp-2">{s.description}</div>
                                             </td>
                                             <td className="px-6 py-4 text-gray-300 text-sm">{s.estimateMins} min</td>
-                                            <td className="px-6 py-4 text-gray-300 text-sm">${s.cost.toFixed(2)}</td>
+                                            <td className="px-6 py-4 text-gray-300 text-sm">Rs:{s.cost.toFixed(2)}</td>
                                             <td className="px-6 py-4">
                                                 {s.active ? (
                                                     <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-500/20 text-green-400">Active</span>
