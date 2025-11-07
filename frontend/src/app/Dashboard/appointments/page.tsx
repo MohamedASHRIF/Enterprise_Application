@@ -19,12 +19,20 @@ export default function AppointmentsPage() {
             setIsLoading(true);
             try {
                 const stored = localStorage.getItem('user');
-                if (!stored) return setAppointments({ upcoming: [], inProgress: [], completed: [] });
+                if (!stored) {
+                    console.debug('appointments: no localStorage user found');
+                    return setAppointments({ upcoming: [], inProgress: [], completed: [] });
+                }
                 const user = JSON.parse(stored);
                 const customerId = user.id || user.userId || user.customerId;
-                if (!customerId) return setAppointments({ upcoming: [], inProgress: [], completed: [] });
+                console.debug('appointments: stored user:', user, 'resolved customerId:', customerId);
+                if (!customerId) {
+                    console.debug('appointments: could not resolve customerId from localStorage.user');
+                    return setAppointments({ upcoming: [], inProgress: [], completed: [] });
+                }
 
                 const list = await getAppointmentsByCustomer(Number(customerId));
+                console.debug('appointments: backend returned', list);
                 const upcoming = (list || []).filter((a: any) => a.status === 'SCHEDULED');
                 const inProgress = (list || []).filter((a: any) => a.status === 'IN_PROGRESS' || a.status === 'PAUSED');
                 const completed = (list || []).filter((a: any) => a.status === 'COMPLETED' || a.status === 'CANCELLED');
