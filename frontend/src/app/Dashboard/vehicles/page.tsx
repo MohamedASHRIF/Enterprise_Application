@@ -11,19 +11,45 @@ import VehicleStats from "@/components/vehicles/VehicleStats";
 
 export default function VehiclesPage() {
     const router = useRouter();
-    
     const [vehicles, setVehicles] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const load = async () => {
+            setIsLoading(true);
+            setError(null);
             try {
-                const stored = localStorage.getItem('user');
-                const user = stored ? JSON.parse(stored) : null;
-                const customerId = user?.id || user?.userId || user?.customerId;
+                // Try to get customer id from stored user object in localStorage
+                let customerId: number | undefined = undefined;
+                try {
+                    const stored = localStorage.getItem('user');
+                    const user = stored ? JSON.parse(stored) : null;
+                    customerId = user?.id || user?.userId || user?.customerId;
+                } catch (e) {
+                    // ignore parse errors
+                }
+
+                // If not found, try decode JWT token payload (dev-friendly fallback)
+                if (!customerId) {
+                    try {
+                        const token = localStorage.getItem('token');
+                        if (token && token.split('.').length === 3) {
+                            const payload = JSON.parse(atob(token.split('.')[1]));
+                            customerId = payload?.sub || payload?.id || payload?.userId || payload?.customerId;
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                }
+
                 const list = await getVehicles(customerId ? Number(customerId) : undefined);
                 setVehicles(list || []);
-            } catch (err) {
+            } catch (err: any) {
                 console.error('Failed to load vehicles', err);
+                setError((err && err.message) ? err.message : 'Failed to load vehicles');
+            } finally {
+                setIsLoading(false);
             }
         };
         load();
@@ -80,13 +106,19 @@ export default function VehiclesPage() {
                     defaultPlate={vehicles.find(v => v.isDefault)?.plate || "None"}
                 />
 
-                {/* Vehicle List */}
-                <VehicleList
-                    vehicles={vehicles}
-                    onAddVehicle={handleAddVehicle}
-                    onEditVehicle={handleEditVehicle}
-                    onDeleteVehicle={handleDeleteVehicle}
-                />
+                {/* Loading / Error / Vehicle List */}
+                {isLoading ? (
+                    <div className="text-gray-400 py-12 text-center">Loading vehicles...</div>
+                ) : error ? (
+                    <div className="bg-red-900/80 rounded-md p-4 text-red-100">{error}</div>
+                ) : (
+                    <VehicleList
+                        vehicles={vehicles}
+                        onAddVehicle={handleAddVehicle}
+                        onEditVehicle={handleEditVehicle}
+                        onDeleteVehicle={handleDeleteVehicle}
+                    />
+                )}
             </div>
         </div>
     );
