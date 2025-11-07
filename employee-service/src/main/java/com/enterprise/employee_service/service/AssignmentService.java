@@ -225,24 +225,6 @@ public class AssignmentService {
         }).toList();
     }
 
-    /**
-     * Return the employee (UserDto) assigned to the given appointment, if any.
-     */
-    public com.enterprise.employee_service.web.dto.UserDto getEmployeeForAppointment(Long appointmentId) {
-        var opt = assignmentRepository.findFirstByAppointmentId(appointmentId);
-        if (opt.isEmpty()) return null;
-        Assignment assignment = opt.get();
-        Long empId = assignment.getEmployeeId();
-        if (empId == null) return null;
-        try {
-            var employees = employeeService.getAllEmployees();
-            return employees.stream().filter(e -> e.getId() != null && e.getId().equals(empId)).findFirst().orElse(null);
-        } catch (Exception e) {
-            log.debug("Could not fetch employee for appointment {}: {}", appointmentId, e.getMessage());
-            return null;
-        }
-    }
-
     // ✅ Send notifications to customer when appointment is assigned
     private void sendCustomerNotification(Long appointmentId, LocalDate appointmentDate) {
         try {
