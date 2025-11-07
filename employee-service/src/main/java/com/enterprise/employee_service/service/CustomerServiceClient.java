@@ -36,6 +36,13 @@ public class CustomerServiceClient {
                         new ParameterizedTypeReference<Map<String, Object>>() {}
                 );
                 Map<String, Object> body = response.getBody();
+                // If the Customer Service wraps responses in an ApiResponse { success, data }, unwrap it.
+                if (body != null && body.containsKey("data") && body.get("data") instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> inner = (Map<String, Object>) body.get("data");
+                    log.info("Fetched appointment details (wrapped) from Customer Service (public) for id={} -> {}", appointmentId, inner);
+                    return inner;
+                }
                 log.info("Fetched appointment details from Customer Service (public) for id={} -> {}", appointmentId, body);
                 return body;
             } catch (RestClientException e) {
@@ -49,6 +56,12 @@ public class CustomerServiceClient {
                     new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             Map<String, Object> body = response.getBody();
+            if (body != null && body.containsKey("data") && body.get("data") instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> inner = (Map<String, Object>) body.get("data");
+                log.info("Fetched appointment details (wrapped) from Customer Service (legacy) for id={} -> {}", appointmentId, inner);
+                return inner;
+            }
             log.info("Fetched appointment details from Customer Service (legacy) for id={} -> {}", appointmentId, body);
             return body;
         } catch (RestClientResponseException e) {
@@ -76,6 +89,12 @@ public class CustomerServiceClient {
                         new ParameterizedTypeReference<Map<String, Object>>() {}
                 );
                 Map<String, Object> body = response.getBody();
+                if (body != null && body.containsKey("data") && body.get("data") instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> inner = (Map<String, Object>) body.get("data");
+                    log.info("Fetched customer (wrapped) from Customer Service (public) for id={} -> {}", customerId, inner);
+                    return inner;
+                }
                 log.info("Fetched customer from Customer Service (public) for id={} -> {}", customerId, body);
                 return body;
             } catch (RestClientException e) {
@@ -88,6 +107,12 @@ public class CustomerServiceClient {
                     new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             Map<String, Object> body = response.getBody();
+            if (body != null && body.containsKey("data") && body.get("data") instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> inner = (Map<String, Object>) body.get("data");
+                log.info("Fetched customer (wrapped) from Customer Service (legacy) for id={} -> {}", customerId, inner);
+                return inner;
+            }
             log.info("Fetched customer from Customer Service (legacy) for id={} -> {}", customerId, body);
             return body;
         } catch (RestClientResponseException e) {
@@ -99,6 +124,38 @@ public class CustomerServiceClient {
         } catch (Exception e) {
             log.error("Unexpected error while fetching customer for id={}", customerId, e);
             return null;
+        }
+    }
+
+    /**
+     * Update appointment status in customer service.
+     * This is called when assignment status changes to keep them synchronized.
+     */
+    public boolean updateAppointmentStatus(Long appointmentId, String status) {
+        try {
+            String url = customerServiceUrl + "/appointments/" + appointmentId + "/status?status=" + status;
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    url, HttpMethod.PUT, entity,
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+            
+            log.info("✅ Updated appointment {} status to {} in customer service", appointmentId, status);
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (RestClientResponseException e) {
+            log.warn("⚠️ Customer service returned error when updating appointment {} status to {}: status={} body={}", 
+                    appointmentId, status, e.getRawStatusCode(), e.getResponseBodyAsString());
+            return false;
+        } catch (RestClientException e) {
+            log.warn("⚠️ Failed to update appointment {} status to {} in customer service: {}", 
+                    appointmentId, status, e.toString());
+            return false;
+        } catch (Exception e) {
+            log.error("❌ Unexpected error while updating appointment {} status to {}", appointmentId, status, e);
+            return false;
         }
     }
 }
