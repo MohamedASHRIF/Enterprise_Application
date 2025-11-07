@@ -2,8 +2,8 @@ package com.enterprise.chatbot.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
 import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
 import java.net.URI;
@@ -20,6 +20,12 @@ import java.util.Map;
 @Service
 public class KnowledgeService {
 
+    @Value("${GEMINI_API_URL:}")
+    private String geminiApiUrl;
+
+    @Value("${GEMINI_API_KEY:}")
+    private String geminiApiKey;
+
     public static class Entry {
         public List<String> keywords = new ArrayList<>();
         public String reply;
@@ -33,7 +39,6 @@ public class KnowledgeService {
                     .connectTimeout(Duration.ofSeconds(10))
                     .build();
 
-            // ✅ Google Gemini expects this specific JSON structure
             Map<String, Object> bodyObj = Map.of(
                     "contents", List.of(
                             Map.of("parts", List.of(Map.of("text", prompt)))
@@ -62,7 +67,6 @@ public class KnowledgeService {
             String respBody = response.body();
 
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                // ✅ Try to extract Gemini’s text reply
                 try {
                     Map<String, Object> json = mapper.readValue(respBody, new TypeReference<Map<String, Object>>() {});
                     if (json.containsKey("candidates")) {
@@ -82,7 +86,6 @@ public class KnowledgeService {
                             }
                         }
                     }
-                    // fallback: raw JSON
                     return respBody;
                 } catch (Exception ex) {
                     System.err.println("Error parsing Gemini response: " + ex.getMessage());
@@ -115,6 +118,9 @@ public class KnowledgeService {
 
     public String findReply(String message) {
         try {
+            System.out.println("🔍 GEMINI_API_URL = " + System.getenv("GEMINI_API_URL"));
+            System.out.println("🔍 GEMINI_API_KEY = " + System.getenv("GEMINI_API_KEY"));
+
             String geminiUrl = System.getenv("GEMINI_API_URL");
             String geminiKey = System.getenv("GEMINI_API_KEY");
             if (geminiUrl != null && !geminiUrl.isBlank() && geminiKey != null && !geminiKey.isBlank()) {

@@ -7,7 +7,7 @@
 }
 
 .iconButton {
-  background: var(--chat-accent, #c72828);
+  background: var(--chat-accent, #2b28c7);
   color: white;
   border: none;
   width: 56px;
@@ -26,7 +26,7 @@
   width: 320px;
   max-width: calc(100vw - 40px);
   height: 420px;
-  background: var(--chat-bg, #ff3b3b);
+  background: var(--chat-bg, #4644a4);
   color: var(--chat-text, white);
   border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);

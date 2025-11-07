@@ -10,4 +10,6 @@ WORKDIR /app
 ARG JAR_FILE=target/*.jar
 COPY --from=build /workspace/${JAR_FILE} /app/app.jar
 EXPOSE 8086
+ENV GEMINI_API_URL="https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent"
+ENV GEMINI_API_KEY="AIzaSyC-lhpwIm0kZB_tbG1dnpPHlK7ZzWVPlaI"
 ENTRYPOINT ["java","-jar","/app/app.jar"]
