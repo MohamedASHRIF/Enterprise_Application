@@ -2,13 +2,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import api from "@/app/api/api";
+import { addVehicle } from '@/app/api/customerApi';
 
 // Backend Integration: POST /api/vehicles
 
 export default function AddVehiclePage() {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     
     const [formData, setFormData] = useState({
         make: '',
@@ -31,20 +32,48 @@ export default function AddVehiclePage() {
         e.preventDefault();
         setIsLoading(true);
 
+        // Client-side validation: basic checks (VIN optional on backend)
+        if (formData.plate && formData.plate.trim().length === 0) {
+            setErrorMessage('License plate cannot be empty');
+            setIsLoading(false);
+            return;
+        }
+
         try {
-            // Backend Integration: POST /api/vehicles
-            // const res = await api.post('/vehicles', formData);
-            // console.log('Vehicle added:', res.data);
-            
-            // Mock success for now
-            console.log('Vehicle data:', formData);
-            alert('Vehicle added successfully!');
-            
-            // Navigate back to vehicles list
-            router.push('/Dashboard/vehicles');
+            // Build payload matching backend Vehicle entity
+            const stored = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+            const user = stored ? JSON.parse(stored) : null;
+
+            const payload = {
+                make: formData.make,
+                model: formData.model,
+                year: Number(formData.year) || 0,
+                color: formData.color,
+                plate: formData.plate,
+                customerId: user?.id || user?.userId || null,
+                // Backend field name is `VIN` (uppercase) in the Vehicle entity
+                VIN: formData.vin || ''
+            };
+
+            setErrorMessage(null);
+            const res = await addVehicle(payload);
+            console.log('Vehicle added (response):', res);
+
+            // Treat any truthy response as success. `addVehicle` returns either
+            // an ApiResponse shape ({ success?, data?, message? }) or the
+            // created vehicle object directly depending on backend.
+            if (res) {
+                // Success
+                alert('Vehicle added successfully!');
+                router.push('/Dashboard/vehicles');
+            } else {
+                // No data returned - treat as failure
+                setErrorMessage('Failed to add vehicle. No response from server.');
+            }
         } catch (error) {
             console.error('Error adding vehicle:', error);
-            alert('Failed to add vehicle. Please try again.');
+            const apiMessage = (error as any)?.response?.data?.message || (error as any)?.message || 'Please try again.';
+            setErrorMessage(`Failed to add vehicle. ${apiMessage}`);
         } finally {
             setIsLoading(false);
         }
@@ -73,6 +102,14 @@ export default function AddVehiclePage() {
 
                 {/* Form Card */}
                 <div className="bg-gray-900 rounded-xl border border-gray-800 p-8">
+                    {errorMessage && (
+                        <div className="mb-4 rounded-md bg-red-900/80 border border-red-700 p-3 text-sm text-red-100">
+                            <div className="flex justify-between items-start">
+                                <div>{errorMessage}</div>
+                                <button onClick={() => setErrorMessage(null)} className="ml-4 text-red-200 hover:text-white">Dismiss</button>
+                            </div>
+                        </div>
+                    )}
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {/* Make & Model */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -166,8 +203,9 @@ export default function AddVehiclePage() {
                                 name="vin"
                                 value={formData.vin}
                                 onChange={handleInputChange}
+                                // VIN is optional on backend; keep client-side optional
                                 className="w-full rounded-xl border-2 border-gray-700 bg-gray-800 px-4 py-3.5 focus:border-cyan-500 focus:outline-none focus:ring-3 focus:ring-cyan-500/20 transition text-white placeholder-gray-500"
-                                placeholder="Optional"
+                                placeholder="Enter VIN (optional)"
                             />
                         </div>
 
