@@ -188,7 +188,33 @@ export const getAppointmentDetails = async (appointmentId: number): Promise<any>
     const response = await api.get(`/appointments/${appointmentId}`);
     // Log the received appointment details to browser console for debugging
     console.debug(`Fetched appointment ${appointmentId} via Employee Service:`, response.data);
-    return response.data;
+    // Normalize response shape: support ApiResponse wrappers and the composed AppointmentSummaryDto
+    let appointmentDetails: any = response.data;
+    if (appointmentDetails && appointmentDetails.data) appointmentDetails = appointmentDetails.data;
+
+    // If Customer Service returned top-level customerName/customerFirstName/customerLastName
+    // but did not include a nested `customer` object, synthesize one so callers using
+    // appointmentDetails.customer.firstName / lastName keep working.
+    try {
+        if (appointmentDetails && !appointmentDetails.customer) {
+            const first = appointmentDetails.customerFirstName || null;
+            const last = appointmentDetails.customerLastName || null;
+            const raw = appointmentDetails.customerName || null;
+            let name = raw;
+            if (!name && first) name = `${first} ${last || ''}`.trim();
+            if (name || first || last) {
+                appointmentDetails.customer = {
+                    firstName: first || (name ? String(name).split(' ')[0] : null),
+                    lastName: last || (name && String(name).includes(' ') ? String(name).split(' ').slice(1).join(' ') : ''),
+                    name: name || (first ? `${first} ${last || ''}`.trim() : null)
+                };
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to normalize appointmentDetails.customer', e);
+    }
+
+    return appointmentDetails;
     } catch (error) {
         console.warn('Customer service not available or appointment not found:', appointmentId, error);
         // Return null instead of throwing - allows graceful degradation
