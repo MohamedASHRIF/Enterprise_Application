@@ -162,6 +162,10 @@ public class EmployeeService {
         user.setRole(Role.EMPLOYEE);
         user.setIsActive(true);
 
+        // Auto-verify employees created by admins (trusted creation)
+        // Employees created by admins don't need email verification
+        user.setEmailVerified(true);
+
         // Set a temporary password
         String tempPassword = "ChangeMe@123";
         user.setPassword(passwordEncoder.encode(tempPassword));
