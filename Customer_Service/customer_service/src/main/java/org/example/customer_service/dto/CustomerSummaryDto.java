@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import org.example.customer_service.dto.EmployeeSummaryDto;
 
 @Data
 @NoArgsConstructor
@@ -16,4 +17,6 @@ public class CustomerSummaryDto {
     private String email;
     private String phone;
     private List<VehicleSummaryDto> vehicles;
+    // Optional employee information (populated when requested by callers)
+    private EmployeeSummaryDto employee;
 }
