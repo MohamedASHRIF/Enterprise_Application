@@ -53,4 +53,9 @@ public class NotificationController {
     public void deleteNotification(@PathVariable Long id) {
         notificationService.deleteNotification(id);
     }
+
+    @GetMapping("/unread-count")
+    public long getUnreadCount(@RequestParam String userEmail) {
+        return notificationService.getUnreadCount(userEmail);
+    }
 }

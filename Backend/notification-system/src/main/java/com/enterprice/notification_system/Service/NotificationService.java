@@ -44,6 +44,10 @@ public class NotificationService {
         notificationRepository.save(n);
     }
 
+    public long getUnreadCount(String userEmail) {
+        return notificationRepository.countByUserEmailAndStatus(userEmail, "UNREAD");
+    }
+
     public void markAllAsRead(String userEmail) {
         List<Notification> notifications = notificationRepository.findByUserEmailOrderByCreatedAtDesc(userEmail);
         for (Notification n : notifications) {

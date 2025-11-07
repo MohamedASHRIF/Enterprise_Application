@@ -10,24 +10,37 @@ export default function Navbar() {
     const [unreadCount, setUnreadCount] = useState(2); // Mock data - Replace with backend API
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // Backend Integration: GET /api/notifications/unread-count
-    useEffect(() => {
-        // Fetch unread notification count
-        // const fetchUnreadCount = async () => {
-        //     try {
-        //         const response = await api.get('/notifications/unread-count');
-        //         setUnreadCount(response.data.count);
-        //     } catch (error) {
-        //         console.error('Error fetching notification count:', error);
-        //     }
-        // };
-        // fetchUnreadCount();
-        
-        // Poll every 30 seconds for new notifications
-        // const interval = setInterval(fetchUnreadCount, 30000);
-        // return () => clearInterval(interval);
-    }, []);
+    const userEmail = localStorage.getItem('userEmail') || user?.email || '';
 
+   
+useEffect(() => {
+    // Function to fetch unread notification count
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await fetch(
+          `http://localhost:8083/api/notifications/unread-count?userEmail=${encodeURIComponent(userEmail)}`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch unread count");
+        }
+
+        const count = await response.json();
+        setUnreadCount(count);
+      } catch (error) {
+        console.error("Error fetching unread count:", error);
+      }
+    };
+
+    fetchUnreadCount(); // initial fetch
+
+    // ⚡ Auto-refresh every 10 seconds
+    const interval = setInterval(fetchUnreadCount, 10000);
+
+    return () => clearInterval(interval); // cleanup on unmount
+  }, [userEmail]);
+
+  
     useEffect(() => {
         // Fetch real user data from localStorage
         const storedUser = localStorage.getItem('user');
