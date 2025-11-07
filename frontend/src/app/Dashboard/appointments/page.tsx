@@ -65,6 +65,27 @@ export default function AppointmentsPage() {
         );
     };
 
+    // Helpers to safely extract vehicle label and initial
+    const vehicleLabelFor = (vehicle: any) => {
+        if (typeof vehicle === 'string') return vehicle;
+        if (!vehicle) return 'Unknown Vehicle';
+        if (vehicle.make) return `${vehicle.make} ${vehicle.model || ''}`.trim();
+        return vehicle.name || 'Unknown Vehicle';
+    };
+
+    const vehicleInitialFor = (vehicle: any) => {
+        const label = vehicleLabelFor(vehicle);
+        return label && label.length > 0 ? label.split(' ')[0].charAt(0) : '?';
+    };
+
+    const serviceNameFor = (svc: any) => {
+        if (!svc) return 'Unknown Service';
+        if (typeof svc === 'string') return svc;
+        if (svc.name) return svc.name;
+        // fallback: try id or JSON
+        return svc.id ? String(svc.id) : JSON.stringify(svc);
+    };
+
     const handleViewDetails = (id: string) => {
         router.push(`/Dashboard/appointments/${id}`);
     };
@@ -165,16 +186,16 @@ export default function AppointmentsPage() {
                                         <div className="flex items-start gap-4 flex-1">
                                             {/* Vehicle Icon */}
                                             <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center text-white text-xl font-bold">
-                                                {apt.vehicle.split(' ')[0].charAt(0)}
+                                                {vehicleInitialFor(apt.vehicle)}
                                             </div>
                                             
                                             {/* Details */}
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-3 mb-2">
-                                                    <h3 className="text-white font-bold text-lg">{apt.service}</h3>
+                                                    <h3 className="text-white font-bold text-lg">{serviceNameFor(apt.service)}</h3>
                                                     {getStatusBadge(apt.status)}
                                                 </div>
-                                                <p className="text-gray-400 text-sm mb-1">{apt.vehicle}</p>
+                                                <p className="text-gray-400 text-sm mb-1">{vehicleLabelFor(apt.vehicle)}</p>
                                                 <div className="flex items-center gap-4 text-sm text-gray-400">
                                                     <span className="flex items-center gap-1">
                                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
