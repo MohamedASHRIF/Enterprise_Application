@@ -11,7 +11,6 @@ services:
       NOTIFICATION_SERVICE_URL: "http://notification:8083"
       FRONTEND_URL: "http://localhost:3000"
     # No local db dependency; service uses Neon DB via SPRING_DATASOURCE_URL
-   
 
     ports:
       - "8081:8081"
@@ -23,6 +22,16 @@ services:
     # Notification does not require a local database
     ports:
       - "8083:8083"
+    # Provide notification provider credentials via environment variables.
+    # Recommended: create a local (untracked) file `Backend/notification-system/.env` with
+    # uppercase underscore names (SENDGRID_API_KEY, TWILIO_ACCOUNT_SID, etc.)
+    # and/or export these vars in your shell. Do NOT commit the real .env to git.
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:h2:mem:appdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
+      SENDGRID_API_KEY: "${SENDGRID_API_KEY}"
+      TWILIO_ACCOUNT_SID: "${TWILIO_ACCOUNT_SID}"
+      TWILIO_AUTH_TOKEN: "${TWILIO_AUTH_TOKEN}"
+      TWILIO_PHONE_NUMBER: "${TWILIO_PHONE_NUMBER}"
 
   employee-service:
     build:
