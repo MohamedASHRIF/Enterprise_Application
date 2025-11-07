@@ -159,6 +159,7 @@ export default function AppointmentDetailsPage() {
                         <div>
                             <h1 className="text-3xl font-bold text-white mb-2">Appointment Details</h1>
                             <p className="text-gray-400">ID: {appointment.id}</p>
+                            <p className="text-gray-400">Customer: {((appointment.customerName || appointment.customer?.name) || '—').toString().replace(/\s+/g, ' ').trim()}</p>
                         </div>
                         <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 ${statusInfo.color} font-semibold`}>
                             <span className="text-xl">{statusInfo.icon}</span>
