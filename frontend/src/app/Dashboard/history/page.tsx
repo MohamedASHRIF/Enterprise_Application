@@ -1,95 +1,132 @@
 "use client"
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { getAppointmentsByCustomer } from "@/app/api/customerApi";
 
-// Backend Integration: GET /api/services/history
+interface HistoryItem {
+    id: string;
+    date: string;
+    vehicle: any;
+    services: string[];
+    cost: number | null;
+    status: string;
+    technician: string;
+    duration: string;
+    rating: number | null;
+    hasFeedback: boolean;
+}
 
 export default function ServiceHistoryPage() {
     const router = useRouter();
     const [selectedFilter, setSelectedFilter] = useState('all');
-    
-    // Mock Data - Replace with backend API calls
-    const [services] = useState([
-        {
-            id: "SRV-001",
-            date: "2024-12-10",
-            vehicle: "Ford F-150",
-            vehicleId: 4,
-            services: ["Full Service", "Tire Rotation", "Oil Change"],
-            cost: 199.99,
-            status: "COMPLETED",
-            technician: "Mike Johnson",
-            duration: "2h 30min",
-            rating: 5,
-            hasFeedback: true
-        },
-        {
-            id: "SRV-002",
-            date: "2024-12-05",
-            vehicle: "BMW 3 Series",
-            vehicleId: 5,
-            services: ["AC Service", "Air Filter Replacement"],
-            cost: 79.99,
-            status: "COMPLETED",
-            technician: "Sarah Williams",
-            duration: "1h 15min",
-            rating: 4,
-            hasFeedback: true
-        },
-        {
-            id: "SRV-003",
-            date: "2024-11-28",
-            vehicle: "Toyota Camry",
-            vehicleId: 1,
-            services: ["Oil Change", "Tire Pressure Check"],
-            cost: 29.99,
-            status: "COMPLETED",
-            technician: "Mike Johnson",
-            duration: "30min",
-            rating: 5,
-            hasFeedback: false
-        },
-        {
-            id: "SRV-004",
-            date: "2024-11-20",
-            vehicle: "Honda Civic",
-            vehicleId: 2,
-            services: ["Brake Inspection", "Brake Pad Replacement"],
-            cost: 149.99,
-            status: "COMPLETED",
-            technician: "John Smith",
-            duration: "2h 0min",
-            rating: 5,
-            hasFeedback: true
-        },
-        {
-            id: "SRV-005",
-            date: "2024-11-10",
-            vehicle: "Tesla Model 3",
-            vehicleId: 3,
-            services: ["Battery Check", "Charging Port Inspection"],
-            cost: 99.99,
-            status: "COMPLETED",
-            technician: "Sarah Williams",
-            duration: "1h 45min",
-            rating: 4,
-            hasFeedback: true
-        },
-        {
-            id: "SRV-006",
-            date: "2024-10-25",
-            vehicle: "Ford F-150",
-            vehicleId: 4,
-            services: ["Routine Maintenance", "Fluid Top-ups"],
-            cost: 59.99,
-            status: "COMPLETED",
-            technician: "Mike Johnson",
-            duration: "45min",
-            rating: 5,
-            hasFeedback: false
+    const [services, setServices] = useState<HistoryItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const parseDatePreserveLocal = (input?: string | Date | null): Date | null => {
+        if (!input) return null;
+        if (input instanceof Date) return new Date(input.getFullYear(), input.getMonth(), input.getDate());
+        const str = String(input);
+        if (!str) return null;
+        const [datePart] = str.split('T');
+        const parts = datePart.split('-');
+        if (parts.length >= 3) {
+            const year = Number(parts[0]);
+            const month = Number(parts[1]) - 1;
+            const day = Number(parts[2].substring(0, 2));
+            if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+                return new Date(year, month, day);
+            }
         }
-    ]);
+        const fallback = new Date(str);
+        return Number.isNaN(fallback.getTime()) ? null : new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+    };
+
+    const vehicleLabelFor = (vehicle: any) => {
+        if (typeof vehicle === 'string') return vehicle;
+        if (!vehicle) return 'Unknown Vehicle';
+        if (vehicle.make) return `${vehicle.make} ${vehicle.model || ''}`.trim();
+        if (vehicle.name) return vehicle.name;
+        if (vehicle.plate) return vehicle.plate;
+        return `Vehicle ${vehicle.id ?? ''}`;
+    };
+
+    const vehicleInitialFor = (vehicle: any) => {
+        const label = vehicleLabelFor(vehicle);
+        return label && label.length > 0 ? label.charAt(0).toUpperCase() : '?';
+    };
+
+    useEffect(() => {
+        const storedUser = localStorage.getItem('user');
+        if (!storedUser) {
+            window.location.href = '/';
+            return;
+        }
+
+        try {
+            const user = JSON.parse(storedUser);
+            const customerId = user.id || user.userId || user.customerId;
+            if (!customerId) {
+                console.warn('Unable to resolve customer id for history page');
+                setIsLoading(false);
+                return;
+            }
+
+            const load = async () => {
+                setIsLoading(true);
+                try {
+                    const appointments = await getAppointmentsByCustomer(Number(customerId));
+                    const completed = (appointments || []).filter((apt: any) => {
+                        const status = (apt?.status || apt?.appointmentStatus || '').toString().toUpperCase();
+                        return ['COMPLETED', 'CANCELLED', 'CANCELLED_BY_CUSTOMER'].includes(status);
+                    });
+
+                    const mapped: HistoryItem[] = completed.map((apt: any) => {
+                        const service = apt?.service || apt?.serviceDetails || apt?.serviceInfo || {};
+                        const duration = service?.duration
+                            ? `${service.duration}${typeof service.duration === 'number' ? ' min' : ''}`
+                            : 'Duration N/A';
+                        const price = service?.price ?? apt?.price ?? null;
+                        const parsedDate = parseDatePreserveLocal(apt?.appointmentDate || apt?.date || apt?.createdAt);
+                        const dateLabel = parsedDate
+                            ? parsedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                            : 'Date TBD';
+                        const technician = apt?.employeeName || apt?.assignedEmployee || 'Technician TBA';
+                        const serviceName = service?.name || apt?.serviceName || 'Service';
+
+                        const generatedId = apt.id ? String(apt.id) : `APT-${Math.random().toString(36).slice(2, 10)}`;
+
+                        return {
+                            id: generatedId,
+                            date: dateLabel,
+                            vehicle: apt?.vehicle || apt?.vehicleDetails || apt?.vehicleInfo || null,
+                            services: Array.isArray(apt?.services)
+                                ? apt.services
+                                : [serviceName],
+                            cost: typeof price === 'number' ? price : Number(price) || null,
+                            status: (apt?.status || apt?.appointmentStatus || 'COMPLETED').toString().toUpperCase(),
+                            technician,
+                            duration,
+                            rating: apt?.feedback?.rating ?? null,
+                            hasFeedback: Boolean(apt?.feedback)
+                        };
+                    });
+
+                    setServices(mapped);
+                } catch (err) {
+                    console.error('Failed to load service history', err);
+                    setServices([]);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            load();
+        } catch (error) {
+            console.error('Error parsing user data for history page', error);
+            setIsLoading(false);
+        }
+    }, []);
 
     const handleViewDetails = (id: string) => {
         router.push(`/Dashboard/history/${id}`);
@@ -99,25 +136,13 @@ export default function ServiceHistoryPage() {
         router.push(`/Dashboard/history/${id}/feedback`);
     };
 
-    const getStarRating = (rating: number) => {
+    const getStarRating = (rating: number | null) => {
+        const safe = Math.max(0, Math.min(5, rating ?? 0));
         return Array(5).fill(0).map((_, i) => (
-            <span key={i} className={i < rating ? 'text-yellow-400' : 'text-gray-600'}>
+            <span key={i} className={i < safe ? 'text-yellow-400' : 'text-gray-600'}>
                 ⭐
             </span>
         ));
-    };
-
-    // Helpers to safely extract vehicle label and initial (same logic as appointments)
-    const vehicleLabelFor = (vehicle: any) => {
-        if (typeof vehicle === 'string') return vehicle;
-        if (!vehicle) return 'Unknown Vehicle';
-        if (vehicle.make) return `${vehicle.make} ${vehicle.model || ''}`.trim();
-        return vehicle.name || 'Unknown Vehicle';
-    };
-
-    const vehicleInitialFor = (vehicle: any) => {
-        const label = vehicleLabelFor(vehicle);
-        return label && label.length > 0 ? label.split(' ')[0].charAt(0) : '?';
     };
 
     const filters = [
@@ -154,14 +179,16 @@ export default function ServiceHistoryPage() {
                     <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-xl border border-purple-500/20 p-6">
                         <p className="text-gray-400 text-sm mb-2">Total Spent</p>
                         <p className="text-3xl font-bold text-white">
-                            ${services.reduce((sum, s) => sum + s.cost, 0).toFixed(2)}
+                            ${services.reduce((sum, s) => sum + (s.cost || 0), 0).toFixed(2)}
                         </p>
                     </div>
                     <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl border border-green-500/20 p-6">
                         <p className="text-gray-400 text-sm mb-2">Average Rating</p>
                         <div className="flex items-center gap-2">
                             <span className="text-3xl font-bold text-white">
-                                {(services.reduce((sum, s) => sum + s.rating, 0) / services.length).toFixed(1)}
+                                {services.length > 0
+                                    ? (services.reduce((sum, s) => sum + (s.rating || 0), 0) / services.length).toFixed(1)
+                                    : '0.0'}
                             </span>
                             <span className="text-2xl">⭐</span>
                         </div>
@@ -191,7 +218,11 @@ export default function ServiceHistoryPage() {
                 </div>
 
                 {/* Services List */}
-                {filteredServices.length > 0 ? (
+                {isLoading ? (
+                    <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center text-gray-400">
+                        Loading service history...
+                    </div>
+                ) : filteredServices.length > 0 ? (
                     <div className="space-y-4">
                         {filteredServices.map((service) => (
                             <div
@@ -248,7 +279,9 @@ export default function ServiceHistoryPage() {
 
                                         {/* Right Side */}
                                         <div className="text-right">
-                                            <p className="text-green-400 font-bold text-xl mb-2">${service.cost.toFixed(2)}</p>
+                                            <p className="text-green-400 font-bold text-xl mb-2">
+                                                {service.cost !== null ? `$${service.cost.toFixed(2)}` : 'Cost N/A'}
+                                            </p>
                                             <div className="flex items-center gap-1 justify-end mb-2">
                                                 {getStarRating(service.rating)}
                                             </div>
@@ -280,7 +313,7 @@ export default function ServiceHistoryPage() {
                                             )}
                                         </div>
                                         <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-semibold">
-                                            ✅ Completed
+                                            ✅ {service.status}
                                         </span>
                                     </div>
                                 </div>
@@ -295,7 +328,7 @@ export default function ServiceHistoryPage() {
                             </svg>
                         </div>
                         <h3 className="text-white text-xl font-bold mb-2">No service history</h3>
-                        <p className="text-gray-400 mb-6">Start booking services to view your history here</p>
+                        <p className="text-gray-400 mb-6">Book and complete services to see them listed here.</p>
                         <button
                             onClick={() => router.push('/Dashboard/book-service')}
                             className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-xl transition"
