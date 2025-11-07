@@ -95,10 +95,31 @@ export const getAppointmentById = async (id: number) => {
 export const getAppointmentPublicById = async (id: number) => {
     try {
         // Public composed DTO (customer-service exposes /api/public/appointments/{id})
-        const res = await customerApi.get(`/public/appointments/${id}`);
-        return res.data;
+        const res = await customerApi.get<any>(`/public/appointments/${id}`);
+        // Normalize response shape to always return the DTO or null.
+        // Accept either ApiResponse<{...}> or raw body.
+        return res.data?.data || res.data || null;
     } catch (err) {
         console.warn('getAppointmentPublicById warning', err);
+        return null;
+    }
+};
+
+/**
+ * Fetch a public customer summary and optionally include employee info for a
+ * specific appointment by passing appointmentId. Uses the new
+ * /api/public/customers/{id}/with-employee endpoint.
+ */
+export const getCustomerWithEmployee = async (customerId: number, appointmentId?: number) => {
+    try {
+        const q = appointmentId
+            ? `/public/customers/${customerId}/with-employee?appointmentId=${appointmentId}`
+            : `/public/customers/${customerId}`;
+        const res = await customerApi.get<any>(q);
+        // support ApiResponse or raw body
+        return res.data?.data || res.data || null;
+    } catch (err) {
+        console.error('getCustomerWithEmployee error', err);
         return null;
     }
 };
@@ -161,6 +182,17 @@ export const addVehicle = async (vehicle: any) => {
         return res.data;
     } catch (err) {
         console.error('addVehicle error', err);
+        throw err;
+    }
+};
+
+export const updateVehicle = async (vehicle: any) => {
+    try {
+        const res = await customerApi.put<ApiResponse<any>>('/vehicles', vehicle);
+        // Support ApiResponse wrapper or raw entity
+        return res.data?.data || res.data || null;
+    } catch (err) {
+        console.error('updateVehicle error', err);
         throw err;
     }
 };

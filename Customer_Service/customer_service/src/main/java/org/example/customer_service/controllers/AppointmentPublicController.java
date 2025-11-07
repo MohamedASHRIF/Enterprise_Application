@@ -24,6 +24,7 @@ public class AppointmentPublicController {
 
     private final AppointmentService appointmentService;
     private final RestTemplate restTemplate;
+    private final org.example.customer_service.services.CustomerService customerService;
 
     @Value("${employee.service.url:http://localhost:8070}")
     private String employeeServiceUrl;
@@ -39,6 +40,25 @@ public class AppointmentPublicController {
                     AppointmentSummaryDto dto = new AppointmentSummaryDto();
                     dto.setId(app.getId());
                     dto.setCustomerId(app.getCustomerId());
+                    // Populate customer name fields from local CustomerService to avoid extra client-side calls
+                    try {
+                        if (app.getCustomerId() > 0) {
+                            customerService.getCustomerById(Long.valueOf(app.getCustomerId())).ifPresent(c -> {
+                                dto.setCustomerName(c.getName());
+                                // attempt to split first/last name
+                                if (c.getName() != null && c.getName().contains(" ")) {
+                                    int idx = c.getName().indexOf(' ');
+                                    dto.setCustomerFirstName(c.getName().substring(0, idx).trim());
+                                    dto.setCustomerLastName(c.getName().substring(idx + 1).trim());
+                                } else {
+                                    dto.setCustomerFirstName(c.getName());
+                                    dto.setCustomerLastName("");
+                                }
+                            });
+                        }
+                    } catch (Exception ignore) {
+                        // non-fatal: leave name fields null
+                    }
                     if (app.getVehicle() != null) {
                         VehicleSummaryDto v = new VehicleSummaryDto();
                         v.setId(app.getVehicle().getId());

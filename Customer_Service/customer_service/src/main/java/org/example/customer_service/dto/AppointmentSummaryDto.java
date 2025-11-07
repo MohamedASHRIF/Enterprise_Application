@@ -13,6 +13,9 @@ import java.time.LocalDate;
 public class AppointmentSummaryDto {
     private Long id;
     private Long customerId;
+    private String customerName;
+    private String customerFirstName;
+    private String customerLastName;
     private VehicleSummaryDto vehicle;
     private ServiceSummaryDto service;
     private EmployeeSummaryDto employee;

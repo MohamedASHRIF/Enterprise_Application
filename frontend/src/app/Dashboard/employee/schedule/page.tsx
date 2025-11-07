@@ -29,6 +29,43 @@ interface ScheduledTask {
     timeLogs?: TimeLogResponse[];
 }
 
+// Utility helpers ----------------------------------------------------------
+// Parse a date string such as "2025-02-07" or "2025-02-07T00:00:00" into a
+// local Date object without shifting the calendar day because of timezone.
+const parseDatePreserveLocal = (input?: string | Date | null): Date | null => {
+    if (!input) return null;
+    if (input instanceof Date) {
+        return new Date(input.getFullYear(), input.getMonth(), input.getDate());
+    }
+
+    const str = String(input);
+    if (!str) return null;
+
+    const [datePart] = str.split('T');
+    const parts = datePart.split('-');
+    if (parts.length >= 3) {
+        const year = Number(parts[0]);
+        const month = Number(parts[1]) - 1;
+        const day = Number(parts[2].substring(0, 2));
+        if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+            return new Date(year, month, day);
+        }
+    }
+
+    const fallback = new Date(str);
+    return Number.isNaN(fallback.getTime())
+        ? null
+        : new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+};
+
+const toDateKey = (date: Date): string => {
+    return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, '0'),
+        String(date.getDate()).padStart(2, '0')
+    ].join('-');
+};
+
 export default function EmployeeSchedule() {
     const [schedule, setSchedule] = useState<{ [key: string]: ScheduledTask[] }>({});
     const [userRole, setUserRole] = useState<string | null>(null);
@@ -120,11 +157,10 @@ export default function EmployeeSchedule() {
             // compute week range based on provided weekStartDate or current state
             const weekBase = weekStartDate ? new Date(weekStartDate) : new Date(weekStart);
             weekBase.setHours(0,0,0,0);
-            const mondayISO = weekBase.toISOString().split('T')[0];
+            const mondayKey = toDateKey(weekBase);
             const sunday = new Date(weekBase);
             sunday.setDate(weekBase.getDate() + 6);
-            sunday.setHours(23,59,59,999);
-            const sundayISO = sunday.toISOString().split('T')[0];
+            const sundayKey = toDateKey(sunday);
 
             // Process each assignment
             for (const assignment of enrichedAssignments) {
@@ -146,15 +182,15 @@ export default function EmployeeSchedule() {
                     }
 
                     // Parse appointment date and only include if within selected week
-                    const appointmentDate = assignment.appointmentDate || assignment.assignedDate;
-                    if (!appointmentDate) continue;
-                    const date = new Date(appointmentDate);
-                    const isoDate = date.toISOString().split('T')[0];
-                    if (isoDate < mondayISO || isoDate > sundayISO) continue;
+                    const parsedDate = parseDatePreserveLocal(assignment.appointmentDate || assignment.assignedDate);
+                    if (!parsedDate) continue;
+                    const appointmentKey = toDateKey(parsedDate);
+                    if (appointmentKey < mondayKey || appointmentKey > sundayKey) continue;
+                    const date = parsedDate;
                     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
                     
                     // Format time
-                    const appointmentTime = assignment.appointmentTime || '09:00 AM';
+                    const appointmentTime = assignment.appointmentTime || assignment.scheduledTime || '09:00 AM';
                     const time = appointmentTime.includes('AM') || appointmentTime.includes('PM') 
                         ? appointmentTime 
                         : formatTime12Hour(appointmentTime);
@@ -230,23 +266,27 @@ export default function EmployeeSchedule() {
             try {
                 const workHours = await getEmployeeWorkHours(employeeId);
                 const now = new Date();
+                now.setHours(0,0,0,0);
                 const dayOfWeek = now.getDay(); // 0 = Sunday
                 const monday = new Date(now);
                 monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-                monday.setHours(0,0,0,0);
                 const sunday = new Date(monday);
                 sunday.setDate(monday.getDate() + 6);
-                sunday.setHours(23,59,59,999);
-                const mondayISO = monday.toISOString().split('T')[0];
-                const sundayISO = sunday.toISOString().split('T')[0];
+
+                const mondayKey = toDateKey(monday);
+                const sundayKey = toDateKey(sunday);
 
                 const weeklySeconds = workHours
-                    .filter((h: WorkHoursResponse) => h && h.workDate && h.workDate >= mondayISO && h.workDate <= sundayISO)
+                    .filter((h: WorkHoursResponse) => {
+                        if (!h || !h.workDate) return false;
+                        const key = h.workDate;
+                        return key >= mondayKey && key <= sundayKey;
+                    })
                     .reduce((total: number, h: WorkHoursResponse) => total + (h.totalSeconds || 0), 0);
 
-                const todayISO = now.toISOString().split('T')[0];
+                const todayKey = toDateKey(now);
                 const todaySeconds = workHours
-                    .filter((h: WorkHoursResponse) => h && h.workDate === todayISO)
+                    .filter((h: WorkHoursResponse) => h && h.workDate === todayKey)
                     .reduce((total: number, h: WorkHoursResponse) => total + (h.totalSeconds || 0), 0);
 
                 const formatSecondsToHumanVerbose = (secs: number) => {
@@ -626,7 +666,7 @@ export default function EmployeeSchedule() {
             d.setDate(weekStart.getDate() + i);
             d.setHours(0,0,0,0);
             const name = d.toLocaleDateString('en-US', { weekday: 'long' });
-            const iso = d.toISOString().split('T')[0];
+            const iso = toDateKey(d);
             days.push({ name, iso, date: d });
         }
         if (!showEmptyDays) return days.filter(d => schedule[d.name] && schedule[d.name].length > 0);
@@ -636,7 +676,7 @@ export default function EmployeeSchedule() {
     // human-friendly week range label
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
-    const weekRangeLabel = `${weekStart.toISOString().split('T')[0]} → ${weekEnd.toISOString().split('T')[0]}`;
+    const weekRangeLabel = `${toDateKey(weekStart)} → ${toDateKey(weekEnd)}`;
 
     const jumpToToday = () => {
         try {
@@ -860,8 +900,8 @@ export default function EmployeeSchedule() {
                                                                                 </div>
                                                                             );
                                                                         })}
-                                                                    </div>
-                                                                </div>
+                                                            </div>
+                                                            </div>
                                                                 );
                                                             })() : (
                                                                 <div className="mt-4 bg-gray-900 rounded-lg border border-gray-700 p-3 text-sm">
@@ -894,7 +934,7 @@ export default function EmployeeSchedule() {
                                                                     Paused
                                                         </span>
                                                             )}
-                                                        </div>
+                                                    </div>
                                                 </div>
                                                 <div className="mt-4 flex gap-2">
                                                         {task.status === 'In Progress' || task.status === 'IN_PROGRESS' ? (
@@ -934,7 +974,7 @@ export default function EmployeeSchedule() {
                                                                 className="flex-1 px-4 py-2 bg-gray-600 text-gray-400 font-semibold rounded-lg cursor-not-allowed text-sm"
                                                             >
                                                                 {task.status === 'COMPLETED' ? 'Completed' : task.status}
-                                                            </button>
+                                                        </button>
                                                     )}
                                                     <button 
                                                         onClick={() => handleViewDetails(task)}
