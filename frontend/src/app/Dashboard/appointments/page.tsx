@@ -55,6 +55,8 @@ export default function AppointmentsPage() {
     const normaliseAppointment = (apt: any) => {
         const service = apt?.service || apt?.serviceDetails || apt?.serviceInfo || null;
         const vehicle = apt?.vehicle || apt?.vehicleDetails || apt?.vehicleInfo || null;
+        const customerNameRaw = apt?.customerName || (apt?.customer && (apt.customer.name || `${apt.customer.firstName || ''} ${apt.customer.lastName || ''}`)) || null;
+        const customerName = customerNameRaw ? String(customerNameRaw).replace(/\s+/g, ' ').trim() : null;
         const statusRaw = (apt?.status || apt?.appointmentStatus || apt?.currentStatus || 'SCHEDULED').toString().toUpperCase();
         const appointmentDate = apt?.appointmentDate || apt?.scheduledDate || apt?.date || null;
         const appointmentTime = apt?.appointmentTime || apt?.scheduledTime || apt?.time || null;
@@ -71,6 +73,7 @@ export default function AppointmentsPage() {
             ...apt,
             service,
             vehicle,
+            customerName,
             status: statusRaw,
             date: formatDisplayDate(appointmentDate),
             time: formatDisplayTime(appointmentTime),
@@ -123,7 +126,12 @@ export default function AppointmentsPage() {
                     
                     // Fetch vehicle details from customer service if missing
                     const needsVehicle = !apt.vehicle || (!apt.vehicle.make && !apt.vehicle.model && !apt.vehicle.name);
-                    if (needsVehicle && (apt.vehicleId || apt.vehicle_id)) {
+                    // If vehicle details are missing, always attempt to fetch the customer's vehicles
+                    // (previous code only attempted this when a vehicleId was present; some backends
+                    // return appointments without a vehicleId but the composed customer DTO contains
+                    // the vehicle objects — causing the list to show no vehicle). We fetch by
+                    // customer + appointment id so we can match the correct vehicle when available.
+                    if (needsVehicle) {
                         try {
                             const cust = await getCustomerWithEmployee(Number(customerId), apt.id);
                             if (cust && Array.isArray(cust.vehicles) && cust.vehicles.length > 0) {
