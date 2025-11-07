@@ -186,6 +186,17 @@ export const addVehicle = async (vehicle: any) => {
     }
 };
 
+export const updateVehicle = async (vehicle: any) => {
+    try {
+        const res = await customerApi.put<ApiResponse<any>>('/vehicles', vehicle);
+        // Support ApiResponse wrapper or raw entity
+        return res.data?.data || res.data || null;
+    } catch (err) {
+        console.error('updateVehicle error', err);
+        throw err;
+    }
+};
+
 export const deleteVehicle = async (id: number) => {
     try {
         const res = await customerApi.delete<ApiResponse<any>>(`/vehicles/${id}`);
