@@ -60,9 +60,8 @@ export default function VehiclesPage() {
     };
 
     const handleEditVehicle = (id: number) => {
-        // Backend Integration: Navigate to edit page
-        // router.push(`/Dashboard/vehicles/${id}/edit`);
-        alert(`Edit vehicle ${id} - Coming soon`);
+        // Navigate to edit page
+        router.push(`/Dashboard/vehicles/${id}/edit`);
     };
 
     const handleDeleteVehicle = async (id: number) => {
