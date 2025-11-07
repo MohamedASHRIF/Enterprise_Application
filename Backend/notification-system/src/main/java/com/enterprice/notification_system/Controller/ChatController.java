@@ -1,38 +1,37 @@
 package com.enterprice.notification_system.Controller;
 
 import com.enterprice.notification_system.Entity.ChatMessage;
+import com.enterprice.notification_system.Service.ChatService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
-
 import java.time.LocalDateTime;
 
 @Controller
 public class ChatController {
 
     private final SimpMessagingTemplate messagingTemplate;
+    private final ChatService chatService;
 
-    public ChatController(SimpMessagingTemplate messagingTemplate) {
+    public ChatController(SimpMessagingTemplate messagingTemplate, ChatService chatService) {
         this.messagingTemplate = messagingTemplate;
+        this.chatService = chatService;
     }
 
-    // For group/public chat
+    // Send a message to a specific chat room
     @MessageMapping("/chat.sendMessage")
-    @SendTo("/topic/public")
-    public ChatMessage sendMessage(@Payload ChatMessage chatMessage) {
+    public void sendMessage(@Payload ChatMessage chatMessage) {
         chatMessage.setTimestamp(LocalDateTime.now());
-        return chatMessage;
+        chatService.saveMessage(chatMessage); // optional persistence
+        messagingTemplate.convertAndSend("/topic/room/" + chatMessage.getRoomId(), chatMessage);
     }
 
-    // For private chat between two users
-    @MessageMapping("/chat.private")
-    public void sendPrivateMessage(@Payload ChatMessage chatMessage) {
+    // When user joins a room
+    @MessageMapping("/chat.addUser")
+    public void addUser(@Payload ChatMessage chatMessage) {
         chatMessage.setTimestamp(LocalDateTime.now());
-        messagingTemplate.convertAndSend(
-                "/topic/private/" + chatMessage.getReceiver(),
-                chatMessage
-        );
+        chatMessage.setType("JOIN");
+        messagingTemplate.convertAndSend("/topic/room/" + chatMessage.getRoomId(), chatMessage);
     }
 }

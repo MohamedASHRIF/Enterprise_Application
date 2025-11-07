@@ -1,5 +1,7 @@
 package com.enterprice.notification_system.Service;
 
+import com.enterprice.notification_system.DTO.NotificationDetailDTO;
+import com.enterprice.notification_system.DTO.NotificationSummaryDTO;
 import com.enterprice.notification_system.Entity.Notification;
 import com.enterprice.notification_system.Repository.NotificationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,8 +32,6 @@ public class NotificationService {
 
         // Send to WebSocket in real time
         messagingTemplate.convertAndSend("/topic/notifications/" + userEmail, savedNotification);
-
-        return ;
     }
 
     public List<Notification> getNotifications(String userEmail) {
@@ -42,5 +42,44 @@ public class NotificationService {
         Notification n = notificationRepository.findById(id).orElseThrow();
         n.setStatus("READ");
         notificationRepository.save(n);
+    }
+
+    public long getUnreadCount(String userEmail) {
+        return notificationRepository.countByUserEmailAndStatus(userEmail, "UNREAD");
+    }
+
+    public void markAllAsRead(String userEmail) {
+        List<Notification> notifications = notificationRepository.findByUserEmailOrderByCreatedAtDesc(userEmail);
+        for (Notification n : notifications) {
+            if ("UNREAD".equals(n.getStatus())) {
+                n.setStatus("READ");
+            }
+        }
+        notificationRepository.saveAll(notifications);
+    }
+
+    public void deleteNotification(Long id) {
+        notificationRepository.deleteById(id);
+    }
+    public List<NotificationSummaryDTO> getNotificationSummaries(String userEmail) {
+        List<Notification> notifications = notificationRepository.findByUserEmailOrderByCreatedAtDesc(userEmail);
+        return notifications.stream()
+                .map(n -> new NotificationSummaryDTO(
+                        n.getId(),
+                        n.getTitle(),
+                        n.getStatus(),
+                        n.getCreatedAt()))
+                .toList();
+    }
+    public NotificationDetailDTO getNotificationDetail(Long id) {
+        Notification n = notificationRepository.findById(id).orElseThrow();
+        return new NotificationDetailDTO(
+                n.getId(),
+                n.getUserEmail(),
+                n.getTitle(),
+                n.getMessage(),
+                n.getType(),
+                n.getStatus(),
+                n.getCreatedAt());
     }
 }
