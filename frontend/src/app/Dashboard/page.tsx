@@ -220,12 +220,12 @@ export default function Dashboard() {
         try {
             const vehicleData = {
                 customerId: customerId,
-                make: newVehicle.make,
-                model: newVehicle.model,
-                year: newVehicle.year,
-                plate: newVehicle.plate,
-                color: newVehicle.color || '',
-                vin: newVehicle.vin || ''
+                make: newVehicle.make.trim(),
+                model: newVehicle.model.trim(),
+                year: parseInt(newVehicle.year) || 0,
+                plate: newVehicle.plate.trim().toUpperCase(),
+                color: newVehicle.color.trim() || null,
+                vin: newVehicle.vin.trim().toUpperCase() || null
             };
 
             const response = await customerApi.post('/api/vehicles', vehicleData);

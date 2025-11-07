@@ -14,27 +14,82 @@ export default function BookServicePage() {
     const [loading, setLoading] = useState(true);
     const [customerId, setCustomerId] = useState<number | null>(null);
 
+    const resolveCustomerId = async (): Promise<number | null> => {
+        let resolvedId: number | null = null;
+
+        try {
+            const userResponse = await customerApi.get('/api/users/me');
+            const apiId = userResponse.data?.id;
+            resolvedId = apiId != null ? Number(apiId) : null;
+            if (Number.isNaN(resolvedId)) {
+                resolvedId = null;
+            }
+        } catch (error) {
+            console.warn('Failed to fetch user ID from API, falling back to localStorage', error);
+        }
+
+        if (!resolvedId) {
+            const storedUser = localStorage.getItem('user');
+            if (storedUser) {
+                try {
+                    const user = JSON.parse(storedUser);
+                    const localId = user?.id ?? user?.customerId ?? null;
+                    resolvedId = localId != null ? Number(localId) : null;
+                    if (Number.isNaN(resolvedId)) {
+                        resolvedId = null;
+                    }
+                } catch (e) {
+                    console.error('Error parsing stored user:', e);
+                }
+            }
+        }
+
+        if (resolvedId) {
+            setCustomerId(resolvedId);
+        }
+
+        return resolvedId;
+    };
+
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                
-                // Get user profile to extract customerId
-                const userResponse = await customerApi.get('/api/users/me');
-                const userId = userResponse.data.id;
-                setCustomerId(userId);
+
+                const userId = await resolveCustomerId();
 
                 // Fetch vehicles
                 if (userId) {
                     const vehiclesResponse = await customerApi.get(`/api/vehicles/customer/${userId}`);
-                    const vehiclesData = vehiclesResponse.data || [];
-                    // Ensure vehiclesData is an array
+                    let vehiclesData = vehiclesResponse.data || [];
+
+                    if (typeof vehiclesData === 'string') {
+                        try {
+                            vehiclesData = JSON.parse(vehiclesData);
+                        } catch (e) {
+                            console.error('Failed to parse vehicles data:', e);
+                            vehiclesData = [];
+                        }
+                    }
+
                     if (Array.isArray(vehiclesData)) {
-                        setVehicles(vehiclesData);
+                        const normalizedVehicles = vehiclesData.map((v: any) => ({
+                            id: v.id,
+                            make: v.make || '',
+                            model: v.model || '',
+                            year: v.year || '',
+                            plate: v.plate || '',
+                            color: v.color || '',
+                            vin: v.vin || v.VIN || ''
+                        }));
+                        setVehicles(normalizedVehicles);
                     } else {
                         console.warn('Vehicles response is not an array:', vehiclesData);
                         setVehicles([]);
                     }
+                } else {
+                    console.warn('No userId available, skipping vehicle fetch');
+                    setVehicles([]);
                 }
 
                 // Fetch services
@@ -47,7 +102,7 @@ export default function BookServicePage() {
                         name: s.name,
                         description: s.description || '',
                         duration: s.estimatedDuration ? `${s.estimatedDuration} min` : 'N/A',
-                        price: s.price ? `$${s.price.toFixed(2)}` : 'N/A',
+                        price: typeof s.price === 'number' ? `$${s.price.toFixed(2)}` : 'N/A',
                         category: s.category || '',
                         estimatedDuration: s.estimatedDuration
                     })));

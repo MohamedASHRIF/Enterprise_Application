@@ -6,6 +6,7 @@ import org.example.customer_service.entities.Appointment;
 import org.example.customer_service.entities.Vehicle;
 import org.example.customer_service.entities.Service;
 import org.example.customer_service.models.AppointmentStatus;
+import org.example.customer_service.repositories.CustomerRepository;
 import org.example.customer_service.repositories.VehicleRepository;
 import org.example.customer_service.repositories.ServiceRepository;
 import org.example.customer_service.services.AppointmentService;
@@ -27,6 +28,7 @@ public class AppointmentController {
     private final AppointmentService appointmentService;
     private final VehicleRepository vehicleRepository;
     private final ServiceRepository serviceRepository;
+    private final CustomerRepository customerRepository;
 
     @Autowired
     private AuthClientService authClientService;
@@ -52,35 +54,70 @@ public class AppointmentController {
     @PostMapping("/book")
     public ResponseEntity<?> book(@RequestBody Map<String, Object> requestData, HttpServletRequest req) {
         try {
+            System.out.println("Booking appointment request payload: " + requestData);
             String email = getEmail(req);
             if (email == null) {
                 return ResponseEntity.status(401).body("Unauthorized: Missing or invalid token");
             }
 
+            // Get vehicle by ID first so we know the owner
+            Object vehicleIdValue = requestData.get("vehicleId");
+            if (vehicleIdValue == null) {
+                return ResponseEntity.badRequest().body("vehicleId is required");
+            }
+            long vehicleId = Long.parseLong(vehicleIdValue.toString());
+            Vehicle vehicle = vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new RuntimeException("Vehicle not found with ID: " + vehicleId));
+            long vehicleOwnerId = vehicle.getCustomerId();
+
+            System.out.println(String.format("Booking for email=%s vehicleId=%d vehicleOwnerId=%d", email, vehicleId, vehicleOwnerId));
+
             // Try to get customerId from JWT token first (faster, no external call)
             Long customerId = getCustomerId(req);
-            
+
             // If not in token, fetch from auth service
             if (customerId == null) {
+                System.out.println("customerId not in token, calling auth service");
                 customerId = fetchCustomerIdFromAuth(email);
-                if (customerId == null) {
-                    return ResponseEntity.status(500)
-                        .body("Unable to fetch customer ID. Please ensure you are logged in with a valid account.");
+            }
+
+            // If still null, try local customer repository
+            if (customerId == null) {
+                System.out.println("customerId still null, checking local customer repo");
+                var customer = customerRepository.findByEmail(email);
+                if (customer != null) {
+                    customerId = customer.getId();
+                    System.out.println("Resolved customerId from repository: " + customerId);
                 }
+            }
+
+            // If still null, fall back to vehicle owner (only if it looks valid)
+            if (customerId == null) {
+                System.out.println("customerId still null, falling back to vehicle owner");
+                customerId = vehicleOwnerId > 0 ? Long.valueOf(vehicleOwnerId) : null;
+            }
+
+            if (customerId == null) {
+                return ResponseEntity.status(500)
+                    .body("Unable to determine customer ID for this booking. Please ensure your account is valid.");
+            }
+
+            if (vehicleOwnerId != customerId.longValue()) {
+                return ResponseEntity.status(403)
+                    .body("You are not authorized to book an appointment for this vehicle.");
             }
 
             // Create appointment object
             Appointment appointment = new Appointment();
             appointment.setCustomerId(customerId);
-
-            // Get vehicle by ID
-            Long vehicleId = Long.valueOf(requestData.get("vehicleId").toString());
-            Vehicle vehicle = vehicleRepository.findById(vehicleId)
-                .orElseThrow(() -> new RuntimeException("Vehicle not found with ID: " + vehicleId));
             appointment.setVehicle(vehicle);
 
             // Get service by ID
-            Long serviceId = Long.valueOf(requestData.get("serviceId").toString());
+            Object serviceIdValue = requestData.get("serviceId");
+            if (serviceIdValue == null) {
+                return ResponseEntity.badRequest().body("serviceId is required");
+            }
+            long serviceId = Long.parseLong(serviceIdValue.toString());
             Service service = serviceRepository.findById(serviceId)
                 .orElseThrow(() -> new RuntimeException("Service not found with ID: " + serviceId));
             appointment.setService(service);
@@ -126,9 +163,17 @@ public class AppointmentController {
             System.out.println("Fetching customerId for email: " + email);
             customerId = fetchCustomerIdFromAuth(email);
             if (customerId == null) {
-                System.err.println("Failed to fetch customerId for email: " + email);
+                var customer = customerRepository.findByEmail(email);
+                if (customer != null) {
+                    customerId = customer.getId();
+                    System.out.println("Resolved customerId from repository: " + customerId);
+                }
+            }
+
+            if (customerId == null) {
+                System.err.println("Failed to resolve customerId for email: " + email);
                 return ResponseEntity.status(500)
-                    .body("Unable to fetch customer ID. The user with email '" + email + 
+                    .body("Unable to fetch customer ID. The user with email '" + email +
                           "' may not exist in the auth service. Please ensure you are logged in with a valid account.");
             }
             System.out.println("Successfully fetched customerId: " + customerId + " for email: " + email);

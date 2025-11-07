@@ -87,7 +87,7 @@ export default function AddVehiclePage() {
                 year: parseInt(formData.year) || 0, // Convert to integer for backend
                 plate: formData.plate.trim().toUpperCase(), // Normalize plate
                 color: formData.color.trim() || null,
-                VIN: vinValue || null // Backend uses uppercase VIN, send null if empty
+                vin: vinValue || null // Backend expects lowercase field name
             };
 
             // Validate required fields
@@ -98,15 +98,15 @@ export default function AddVehiclePage() {
             }
 
             // Validate VIN if provided (should be 17 characters, but allow empty)
-            if (vehicleData.VIN && vehicleData.VIN.length > 0 && vehicleData.VIN.length !== 17) {
+            if (vehicleData.vin && vehicleData.vin.length > 0 && vehicleData.vin.length !== 17) {
                 alert('VIN must be exactly 17 characters if provided.');
                 setIsLoading(false);
                 return;
             }
             
             // If VIN is empty string, convert to null
-            if (vehicleData.VIN === '') {
-                vehicleData.VIN = null;
+            if (vehicleData.vin === '') {
+                vehicleData.vin = null;
             }
 
             console.log('Sending vehicle data:', vehicleData);

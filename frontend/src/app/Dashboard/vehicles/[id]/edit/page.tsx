@@ -118,9 +118,9 @@ export default function EditVehiclePage() {
                 make: formData.make.trim(),
                 model: formData.model.trim(),
                 year: parseInt(formData.year) || 0, // Convert to integer for backend
-                plate: formData.plate.trim(),
-                color: formData.color.trim() || '',
-                VIN: formData.vin.trim() || '' // Backend uses uppercase VIN
+                plate: formData.plate.trim().toUpperCase(),
+                color: formData.color.trim() || null,
+                vin: formData.vin.trim().toUpperCase() || null // Backend expects lowercase vin field
             };
 
             // Validate required fields

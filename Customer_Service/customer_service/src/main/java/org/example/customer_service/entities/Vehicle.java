@@ -1,4 +1,6 @@
 package org.example.customer_service.entities;
+
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
@@ -27,8 +29,9 @@ public class    Vehicle {
     @Column(name = "customer_id", nullable = false)
     private long customerId;
 
-    @Column(unique = true, nullable = true)
-    private String VIN;
+    @Column(name = "vin", unique = true, nullable = true)
+    @JsonAlias({"VIN", "vin"})
+    private String vin;
 
     @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL)
     @JsonIgnore // Prevent circular reference in JSON serialization

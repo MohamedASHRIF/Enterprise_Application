@@ -14,13 +14,48 @@ export default function VehiclesPage() {
     const [loading, setLoading] = useState(true);
     const [customerId, setCustomerId] = useState<number | null>(null);
 
+    const resolveCustomerId = async (): Promise<number | null> => {
+        let resolvedId: number | null = null;
+
+        try {
+            const userResponse = await customerApi.get('/api/users/me');
+            const apiId = userResponse.data?.id;
+            resolvedId = apiId != null ? Number(apiId) : null;
+            if (Number.isNaN(resolvedId)) {
+                resolvedId = null;
+            }
+        } catch (error) {
+            console.warn('Failed to fetch user ID from API, falling back to localStorage', error);
+        }
+
+        if (!resolvedId) {
+            const storedUser = localStorage.getItem('user');
+            if (storedUser) {
+                try {
+                    const user = JSON.parse(storedUser);
+                    const localId = user?.id ?? user?.customerId ?? null;
+                    resolvedId = localId != null ? Number(localId) : null;
+                    if (Number.isNaN(resolvedId)) {
+                        resolvedId = null;
+                    }
+                } catch (e) {
+                    console.error('Error parsing stored user:', e);
+                }
+            }
+        }
+
+        if (resolvedId) {
+            setCustomerId(resolvedId);
+        }
+
+        return resolvedId;
+    };
+
     const fetchVehicles = async () => {
         try {
             setLoading(true);
-            // Get user profile to extract customerId
-            const userResponse = await customerApi.get('/api/users/me');
-            const userId = userResponse.data.id;
-            setCustomerId(userId);
+
+            const userId = await resolveCustomerId();
 
             if (userId) {
                 const response = await customerApi.get(`/api/vehicles/customer/${userId}`);
@@ -146,8 +181,10 @@ export default function VehiclesPage() {
             await customerApi.delete(`/api/vehicles/${id}`);
             
             // Refresh vehicles list from server
-            if (customerId) {
-                const response = await customerApi.get(`/api/vehicles/customer/${customerId}`);
+            const activeCustomerId = customerId ?? (await resolveCustomerId());
+
+            if (activeCustomerId) {
+                const response = await customerApi.get(`/api/vehicles/customer/${activeCustomerId}`);
                 const vehiclesData = response.data || [];
                 // Ensure vehiclesData is an array
                 if (Array.isArray(vehiclesData)) {

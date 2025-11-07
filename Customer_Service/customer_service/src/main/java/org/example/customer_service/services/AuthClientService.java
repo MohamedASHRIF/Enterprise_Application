@@ -1,6 +1,7 @@
 package org.example.customer_service.services;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -13,9 +14,12 @@ public class AuthClientService {
     @Autowired
     private WebClient webClient;
 
+    @Value("${auth.service.base-url:http://auth:8081}")
+    private String authServiceBaseUrl;
+
     public Long getCustomerIdByEmail(String email) {
         try {
-            String url = "http://localhost:8081/api/auth/user?email=" + java.net.URLEncoder.encode(email, java.nio.charset.StandardCharsets.UTF_8);
+            String url = authServiceBaseUrl + "/api/auth/user?email=" + java.net.URLEncoder.encode(email, java.nio.charset.StandardCharsets.UTF_8);
             var response = webClient.get()
                     .uri(url)
                     .retrieve()
