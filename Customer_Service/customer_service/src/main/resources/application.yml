@@ -11,9 +11,6 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://db:5432/appdb}
     username: ${SPRING_DATASOURCE_USERNAME:appuser}
     password: ${SPRING_DATASOURCE_PASSWORD:changeme}
-    #url: jdbc:postgresql://localhost:5432/appdb
-    #username: appuser
-    #password: changeme
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10

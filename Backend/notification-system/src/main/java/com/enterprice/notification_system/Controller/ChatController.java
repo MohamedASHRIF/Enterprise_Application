@@ -4,15 +4,11 @@ import com.enterprice.notification_system.Entity.ChatMessage;
 import com.enterprice.notification_system.Service.ChatService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.CrossOrigin;
-
 import java.time.LocalDateTime;
 
 @Controller
-@CrossOrigin(origins = "http://localhost:3000")
 public class ChatController {
 
     private final SimpMessagingTemplate messagingTemplate;
@@ -33,10 +29,9 @@ public class ChatController {
 
     // When user joins a room
     @MessageMapping("/chat.addUser")
-    public void addUser(@Payload ChatMessage chatMessage , SimpMessageHeaderAccessor headerAccessor) {
+    public void addUser(@Payload ChatMessage chatMessage) {
         chatMessage.setTimestamp(LocalDateTime.now());
         chatMessage.setType("JOIN");
-        headerAccessor.getSessionAttributes().put("roomId", chatMessage.getRoomId());
         messagingTemplate.convertAndSend("/topic/room/" + chatMessage.getRoomId(), chatMessage);
     }
 }

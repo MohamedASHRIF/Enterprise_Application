@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import ChatWidget from "../components/chatbot/ChatWidget";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -14,9 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}
-        <ChatWidget />
-      </body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Data
@@ -27,6 +26,5 @@ public class Service {
     private Double rating;
 
     @OneToMany(mappedBy = "service", cascade = CascadeType.ALL)
-    @JsonIgnore
     private List<Appointment> appointments = new ArrayList<>();
 }

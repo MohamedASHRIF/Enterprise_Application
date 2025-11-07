@@ -107,19 +107,6 @@ export default function ServiceHistoryPage() {
         ));
     };
 
-    // Helpers to safely extract vehicle label and initial (same logic as appointments)
-    const vehicleLabelFor = (vehicle: any) => {
-        if (typeof vehicle === 'string') return vehicle;
-        if (!vehicle) return 'Unknown Vehicle';
-        if (vehicle.make) return `${vehicle.make} ${vehicle.model || ''}`.trim();
-        return vehicle.name || 'Unknown Vehicle';
-    };
-
-    const vehicleInitialFor = (vehicle: any) => {
-        const label = vehicleLabelFor(vehicle);
-        return label && label.length > 0 ? label.split(' ')[0].charAt(0) : '?';
-    };
-
     const filters = [
         { id: 'all', label: 'All Services', count: services.length },
         { id: 'hasFeedback', label: 'With Feedback', count: services.filter(s => s.hasFeedback).length },
@@ -213,12 +200,12 @@ export default function ServiceHistoryPage() {
 
                                             {/* Vehicle Icon */}
                                             <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center text-white text-xl font-bold">
-                                                {vehicleInitialFor(service.vehicle)}
+                                                {service.vehicle.split(' ')[0].charAt(0)}
                                             </div>
 
                                             {/* Details */}
                                             <div className="flex-1">
-                                                <h3 className="text-white font-bold text-lg mb-2">{vehicleLabelFor(service.vehicle)}</h3>
+                                                <h3 className="text-white font-bold text-lg mb-2">{service.vehicle}</h3>
                                                 <div className="flex flex-wrap items-center gap-2 mb-2">
                                                     {service.services.map((svc, idx) => (
                                                         <span

@@ -10,15 +10,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ServiceService {
 
-    private final ServiceRepository serviceRepository;
+    private ServiceRepository serviceRepository;
 
     public List<org.example.customer_service.entities.Service> getAllServices() {
         return serviceRepository.findAll();
-    }
-
-    // Dev helper: create a service so local dev environment can be seeded via API
-    public org.example.customer_service.entities.Service createService(
-            org.example.customer_service.entities.Service service) {
-        return serviceRepository.save(service);
     }
 }
