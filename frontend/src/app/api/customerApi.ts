@@ -137,8 +137,13 @@ export const getAppointmentStats = async () => {
 export const getVehicles = async (customerId?: number) => {
     try {
         const url = customerId ? `/vehicles/customer/${customerId}` : '/vehicles';
-        const res = await customerApi.get<ApiResponse<any[]>>(url);
-        return res.data?.data || [];
+        const res = await customerApi.get<any>(url);
+        // Support two response shapes:
+        // 1) ApiResponse<T> -> { success?, data?: T, message? }
+        // 2) raw array -> [ { ...vehicle }, ... ]
+        if (res.data && Array.isArray(res.data)) return res.data;
+        if (res.data && res.data.data && Array.isArray(res.data.data)) return res.data.data;
+        return [];
     } catch (err) {
         console.error('getVehicles error', err);
         return [];
