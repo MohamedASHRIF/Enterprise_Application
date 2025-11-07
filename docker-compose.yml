@@ -48,6 +48,12 @@ services:
       context: ./chatbot-backend
       dockerfile: Dockerfile
     # Chatbot does not require a local database
+    environment:
+      # Set GEMINI_API_URL and GEMINI_API_KEY via host env or a .env file (do NOT commit secrets)
+      GEMINI_API_URL: "${GEMINI_API_URL}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY}"
+      # Ensure the customer service URL points to the compose service by default
+      CUSTOMER_SERVICE_URL: "${CUSTOMER_SERVICE_URL:-http://customer_service:8085}"
     ports:
       - "8086:8086"
 
