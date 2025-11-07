@@ -93,6 +93,10 @@ import com.enterprise.authentication.entity.User;
 import com.enterprise.authentication.service.AuthenticationService;
 import com.enterprise.authentication.service.UserService;
 import com.enterprise.authentication.util.JwtUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.client.RestTemplate;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -100,6 +104,10 @@ public class AuthController {
     private final AuthenticationService authenticationService;
     private final JwtUtil jwtUtil;
     private final UserService userService;
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+
+    @Value("${customer.service.url:http://localhost:8085}")
+    private String customerServiceUrl;
 
     @Autowired
     public AuthController(AuthenticationService authenticationService, JwtUtil jwtUtil, UserService userService) {
@@ -112,20 +120,40 @@ public class AuthController {
     public ResponseEntity<?> register(@RequestBody User user) {
         User savedUser = authenticationService.registerUser(user);
         String token = jwtUtil.generateToken(savedUser.getEmail());
-        // Return both token and user data
-        return ResponseEntity.ok(Map.of(
-                "token", token,
-                "message", "Registration successful! Please check your email to verify your account.",
-                "user", Map.of(
-                        "id", savedUser.getId(),
-                        "firstName", savedUser.getFirstName(),
-                        "lastName", savedUser.getLastName(),
-                        "email", savedUser.getEmail(),
-                        "phoneNumber", savedUser.getPhoneNumber() != null ? savedUser.getPhoneNumber() : "",
-                        "role", savedUser.getRole().toString(),
-                        "emailVerified", Boolean.TRUE.equals(savedUser.getEmailVerified())
-                )
-        ));
+    // Best-effort: create a corresponding customer record in customer-service
+    try {
+        RestTemplate rest = new RestTemplate();
+        Map<String, Object> customerPayload = Map.of(
+            "userId", savedUser.getId(),
+            "name", (savedUser.getFirstName() == null ? "" : savedUser.getFirstName()) +
+                (savedUser.getLastName() == null ? "" : " " + savedUser.getLastName()),
+            "email", savedUser.getEmail(),
+            "phone", savedUser.getPhoneNumber() != null ? savedUser.getPhoneNumber() : ""
+        );
+        logger.info("Auth: attempting POST to Customer-service {} with payload={}", customerServiceUrl + "/api/customers", customerPayload);
+        // POST /api/customers - capture response for debugging
+        Map response = rest.postForObject(customerServiceUrl + "/api/customers", customerPayload, Map.class);
+        logger.info("Auth: customer-service response for {} -> {}", savedUser.getEmail(), response);
+        logger.debug("Posted new customer to {} for user {}", customerServiceUrl, savedUser.getEmail());
+    } catch (Exception ex) {
+        // Non-fatal: log and continue
+        logger.warn("Failed to create customer record in customer-service for user {}: {}", savedUser.getEmail(), ex.toString());
+    }
+
+    // Return both token and user data
+    return ResponseEntity.ok(Map.of(
+        "token", token,
+        "message", "Registration successful! Please check your email to verify your account.",
+        "user", Map.of(
+            "id", savedUser.getId(),
+            "firstName", savedUser.getFirstName(),
+            "lastName", savedUser.getLastName(),
+            "email", savedUser.getEmail(),
+            "phoneNumber", savedUser.getPhoneNumber() != null ? savedUser.getPhoneNumber() : "",
+            "role", savedUser.getRole().toString(),
+            "emailVerified", Boolean.TRUE.equals(savedUser.getEmailVerified())
+        )
+    ));
     }
 
     @PostMapping("/login")
@@ -172,6 +200,40 @@ public class AuthController {
                         "id", user.getId(),
                         "email", user.getEmail()
                 )))
+                .orElse(ResponseEntity.status(404).body(Map.of("error", "User not found")));
+    }
+
+    /**
+     * Minimal, explicit endpoint to create/sync a customer record in customer-service for a given user email.
+     * Accepts JSON: { "email": "user@example.com" }
+     * This is best-effort and will not modify existing registration/login behavior.
+     */
+    @PostMapping("/sync-customer")
+    public ResponseEntity<?> syncCustomer(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        if (email == null || email.trim().isEmpty()) {
+            return ResponseEntity.status(400).body(Map.of("error", "email is required"));
+        }
+
+        return userService.findByEmail(email)
+                .map(savedUser -> {
+                    try {
+                        RestTemplate rest = new RestTemplate();
+            Map<String, Object> customerPayload = Map.of(
+                "userId", savedUser.getId(),
+                "name", (savedUser.getFirstName() == null ? "" : savedUser.getFirstName()) +
+                    (savedUser.getLastName() == null ? "" : " " + savedUser.getLastName()),
+                "email", savedUser.getEmail(),
+                "phone", savedUser.getPhoneNumber() != null ? savedUser.getPhoneNumber() : ""
+            );
+                        rest.postForObject(customerServiceUrl + "/api/customers", customerPayload, Map.class);
+                        logger.debug("syncCustomer: posted customer for {} to {}", savedUser.getEmail(), customerServiceUrl);
+                        return ResponseEntity.ok(Map.of("success", true));
+                    } catch (Exception ex) {
+                        logger.warn("syncCustomer: failed to post customer for {}: {}", savedUser.getEmail(), ex.getMessage());
+                        return ResponseEntity.status(502).body(Map.of("error", "failed to create customer", "detail", ex.getMessage()));
+                    }
+                })
                 .orElse(ResponseEntity.status(404).body(Map.of("error", "User not found")));
     }
     

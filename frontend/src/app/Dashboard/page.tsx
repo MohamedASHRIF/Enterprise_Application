@@ -202,7 +202,7 @@ export default function Dashboard() {
                                                 </span>
                                                 <span className="text-gray-400 text-xs">{apt.id}</span>
                                             </div>
-                                            <h3 className="text-white font-semibold mb-1">{apt.service}</h3>
+                                            <h3 className="text-white font-semibold mb-1">{typeof (apt.service as any) === 'string' ? (apt.service as any) : ((apt.service as any)?.name || String((apt.service as any)?.id || 'Service'))}</h3>
                                             <p className="text-gray-400 text-sm">{apt.vehicle}</p>
                                             <div className="flex items-center gap-2 mt-2 text-sm text-gray-400">
                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">

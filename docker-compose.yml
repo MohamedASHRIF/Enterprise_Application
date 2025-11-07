@@ -8,10 +8,13 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:postgresql://ep-long-feather-a1jvn6ah-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require&channel_binding=require"
       SPRING_DATASOURCE_USERNAME: "neondb_owner"
       SPRING_DATASOURCE_PASSWORD: "npg_uDPTyF9b3eNp"
+      # Twilio placeholders (set real values via env or secrets for production)
+      TWILIO_ACCOUNT_SID: ""
+      TWILIO_AUTH_TOKEN: ""
+      TWILIO_PHONE_NUMBER: ""
       NOTIFICATION_SERVICE_URL: "http://notification:8083"
       FRONTEND_URL: "http://localhost:3000"
     # No local db dependency; service uses Neon DB via SPRING_DATASOURCE_URL
-   
 
     ports:
       - "8081:8081"
@@ -20,7 +23,11 @@ services:
     build:
       context: ./Backend/notification-system
       dockerfile: Dockerfile
-    # Notification does not require a local database
+    # Notification uses the shared Neon Postgres DB (override defaults in application.properties)
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://ep-long-feather-a1jvn6ah-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require&channel_binding=require"
+      SPRING_DATASOURCE_USERNAME: "neondb_owner"
+      SPRING_DATASOURCE_PASSWORD: "npg_uDPTyF9b3eNp"
     ports:
       - "8083:8083"
 
@@ -64,6 +71,7 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:postgresql://ep-weathered-paper-a1e2pqli-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require"
       SPRING_DATASOURCE_USERNAME: "neondb_owner"
       SPRING_DATASOURCE_PASSWORD: "npg_7qejET0MJmlF"
+      ADMIN_SERVICE_URL: "http://admin:8082"
     # No local db dependency; service uses Neon DB via SPRING_DATASOURCE_URL
     ports:
       - "8085:8085"
@@ -73,12 +81,29 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
+        # Client-side (baked into the Next.js bundle at build time) - used by browser code
+        NEXT_PUBLIC_AUTH_URL: http://localhost:8081/api
+        NEXT_PUBLIC_ADMIN_URL: http://localhost:8082/api
+        NEXT_PUBLIC_NOTIFICATION_URL: http://localhost:8083/api
+        NEXT_PUBLIC_CUSTOMER_URL: http://localhost:8085/api
+        NEXT_PUBLIC_EMPLOYEE_URL: http://localhost:8070/api
+        # Backwards-compatible fallback used by older code paths
         NEXT_PUBLIC_API_BASE_URL: http://localhost:8081/api
+    environment:
+      # Server-side URLs (available to Next.js server/runtime inside the container) - use docker compose service names
+      SERVER_AUTH_URL: http://auth:8081/api
+      SERVER_ADMIN_URL: http://admin:8082/api
+      SERVER_NOTIFICATION_URL: http://notification:8083/api
+      SERVER_CUSTOMER_URL: http://customer_service:8085/api
+      SERVER_EMPLOYEE_URL: http://employee-service:8070/api
     ports:
       - "3000:3000"
     depends_on:
       - auth
+      - admin
       - notification
+      - customer_service
+      - employee-service
 
 volumes:
   rabbitmqdata:
