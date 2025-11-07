@@ -1,0 +1,113 @@
+.container {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 9999;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+.iconButton {
+  background: var(--chat-accent, #c72828);
+  color: white;
+  border: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
+
+.iconSvg { opacity: 0.98 }
+
+.chatWindow {
+  width: 320px;
+  max-width: calc(100vw - 40px);
+  height: 420px;
+  background: var(--chat-bg, #ff3b3b);
+  color: var(--chat-text, white);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-bottom: 12px;
+  animation: pop 140ms ease-out;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-weight: 600;
+}
+
+.title { font-size: 14px }
+.close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.messages {
+  padding: 12px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.empty { opacity: 0.9 }
+
+.msgUser {
+  align-self: flex-end;
+  background: rgba(255,255,255,0.15);
+  padding: 8px 10px;
+  border-radius: 10px;
+  max-width: 85%;
+  word-break: break-word;
+}
+
+.msgAssistant {
+  align-self: flex-start;
+  background: rgba(0,0,0,0.12);
+  padding: 8px 10px;
+  border-radius: 10px;
+  max-width: 85%;
+  word-break: break-word;
+}
+
+.composer {
+  padding: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  gap: 8px;
+}
+
+.input {
+  flex: 1 1 auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+}
+
+.send {
+  background: rgba(255,255,255,0.12);
+  color: inherit;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+@keyframes pop {
+  from { transform: translateY(6px) scale(0.98); opacity: 0 }
+  to { transform: none; opacity: 1 }
+}
