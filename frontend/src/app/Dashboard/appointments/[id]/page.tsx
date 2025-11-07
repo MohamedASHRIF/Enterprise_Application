@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { getAppointmentPublicById } from '@/app/api/customerApi';
+import { getEmployeeForAppointment } from '@/app/api/employeeApi';
 
 // Backend Integration: GET /api/appointments/{id}
 
@@ -24,11 +25,35 @@ export default function AppointmentDetailsPage() {
                     setAppointment(null);
                     return;
                 }
-                const res = await getAppointmentPublicById(idNum);
-                // customerApi returns the DTO or null
-                // Some implementations return { success, data }
-                if (res && res.data) setAppointment(res.data);
-                else setAppointment(res || null);
+                // Get appointment details from customer service
+                const dto = await getAppointmentPublicById(idNum);
+                if (!dto) {
+                    setAppointment(null);
+                    return;
+                }
+                
+                // Fetch employee details from employee service
+                try {
+                    const employee = await getEmployeeForAppointment(idNum);
+                    if (employee) {
+                        dto.employee = {
+                            name: `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || 'Unassigned',
+                            firstName: employee.firstName,
+                            lastName: employee.lastName,
+                            phone: employee.phoneNumber,
+                            email: employee.email,
+                            jobTitle: employee.jobTitle
+                        };
+                    } else {
+                        dto.employee = dto.employee || { name: 'Unassigned' };
+                    }
+                } catch (e) {
+                    console.warn('Failed to fetch employee details from employee service', e);
+                    // Keep existing employee data if any, or set default
+                    dto.employee = dto.employee || { name: 'Unassigned' };
+                }
+                
+                setAppointment(dto);
             } catch (e) {
                 console.error('Failed to load appointment', e);
                 setAppointment(null);
@@ -184,9 +209,25 @@ export default function AppointmentDetailsPage() {
                             Vehicle Information
                         </h3>
                         <div className="space-y-2">
-                            <p className="text-white font-semibold">{appointment.vehicle.make} {appointment.vehicle.model}</p>
-                            <p className="text-gray-400 text-sm">{appointment.vehicle.year} • {appointment.vehicle.plate}</p>
-                            <p className="text-gray-400 text-sm">Color: {appointment.vehicle.color}</p>
+                            {appointment.vehicle ? (
+                                <>
+                                    <p className="text-white font-semibold">
+                                        {appointment.vehicle.make ? `${appointment.vehicle.make} ${appointment.vehicle.model || ''}`.trim() : 
+                                         appointment.vehicle.model ? appointment.vehicle.model :
+                                         appointment.vehicle.name || 'Vehicle'}
+                                    </p>
+                                    <p className="text-gray-400 text-sm">
+                                        {appointment.vehicle.year ? `${appointment.vehicle.year}` : ''}
+                                        {appointment.vehicle.year && appointment.vehicle.plate ? ' • ' : ''}
+                                        {appointment.vehicle.plate || ''}
+                                    </p>
+                                    {appointment.vehicle.color && (
+                                        <p className="text-gray-400 text-sm">Color: {appointment.vehicle.color}</p>
+                                    )}
+                                </>
+                            ) : (
+                                <p className="text-gray-400 text-sm">Vehicle information not available</p>
+                            )}
                         </div>
                     </div>
 
@@ -199,9 +240,9 @@ export default function AppointmentDetailsPage() {
                             Service Details
                         </h3>
                         <div className="space-y-2">
-                            <p className="text-white font-semibold">{appointment.service.name}</p>
-                            <p className="text-gray-400 text-sm">{appointment.service.description}</p>
-                            <p className="text-cyan-400 font-medium text-sm">{appointment.estimatedDuration} • {appointment.service.price}</p>
+                            <p className="text-white font-semibold">{appointment.service?.name ?? '—'}</p>
+                            <p className="text-gray-400 text-sm">{appointment.service?.description ?? ''}</p>
+                            <p className="text-cyan-400 font-medium text-sm">{appointment.estimatedDuration ?? '—'} • {appointment.service?.price ?? '—'}</p>
                         </div>
                     </div>
                 </div>
@@ -216,9 +257,9 @@ export default function AppointmentDetailsPage() {
                             Date & Time
                         </h3>
                         <div className="space-y-2">
-                            <p className="text-white font-semibold">{formatDate(appointment.date)}</p>
-                            <p className="text-cyan-400 font-bold text-lg">{appointment.time}</p>
-                            <p className="text-gray-400 text-sm">Estimated Duration: {appointment.estimatedDuration}</p>
+                            <p className="text-white font-semibold">{formatDate(appointment.date ?? appointment.appointmentDate ?? '')}</p>
+                            <p className="text-cyan-400 font-bold text-lg">{appointment.time ?? appointment.appointmentTime ?? ''}</p>
+                            <p className="text-gray-400 text-sm">Estimated Duration: {appointment.estimatedDuration ?? '—'}</p>
                         </div>
                     </div>
 
@@ -230,12 +271,12 @@ export default function AppointmentDetailsPage() {
                             Assigned Technician
                         </h3>
                         <div className="space-y-2">
-                            <p className="text-white font-semibold">{appointment.employee.name}</p>
+                            <p className="text-white font-semibold">{appointment.employee?.name ?? 'Unassigned'}</p>
                             <p className="text-gray-400 text-sm flex items-center gap-1">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
                                 </svg>
-                                {appointment.employee.phone}
+                                {appointment.employee?.phone ?? '—'}
                             </p>
                         </div>
                     </div>
