@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
-import { getAppointmentsByCustomer, cancelAppointment } from '@/app/api/customerApi';
+import { getAppointmentsByCustomer, cancelAppointment, getCustomerWithEmployee } from '@/app/api/customerApi';
+import { getEmployeeForAppointment } from '@/app/api/employeeApi';
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 
@@ -13,6 +14,71 @@ export default function AppointmentsPage() {
     // Appointments state (loaded from backend)
     const [appointments, setAppointments] = useState<any>({ upcoming: [], inProgress: [], completed: [] });
     const [isLoading, setIsLoading] = useState(true);
+
+    const parseDatePreserveLocal = (input?: string | Date | null): Date | null => {
+        if (!input) return null;
+        if (input instanceof Date) return new Date(input.getFullYear(), input.getMonth(), input.getDate());
+        const str = String(input);
+        if (!str) return null;
+        const [datePart] = str.split('T');
+        const parts = datePart.split('-');
+        if (parts.length >= 3) {
+            const year = Number(parts[0]);
+            const month = Number(parts[1]) - 1;
+            const day = Number(parts[2].substring(0, 2));
+            if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+                return new Date(year, month, day);
+            }
+        }
+        const fallback = new Date(str);
+        return Number.isNaN(fallback.getTime()) ? null : new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+    };
+
+    const formatDisplayDate = (input?: string | Date | null) => {
+        const date = parseDatePreserveLocal(input);
+        return date ? date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Date TBD';
+    };
+
+    const formatDisplayTime = (time?: string | null) => {
+        if (!time) return 'Time TBD';
+        const str = String(time);
+        if (str.toLowerCase().includes('am') || str.toLowerCase().includes('pm')) return str;
+        const [hStr, mStr] = str.split(':');
+        const hour = Number(hStr);
+        if (Number.isNaN(hour)) return str;
+        const minutes = mStr ? mStr.substring(0,2) : '00';
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const hour12 = hour % 12 || 12;
+        return `${hour12}:${minutes} ${ampm}`;
+    };
+
+    const normaliseAppointment = (apt: any) => {
+        const service = apt?.service || apt?.serviceDetails || apt?.serviceInfo || null;
+        const vehicle = apt?.vehicle || apt?.vehicleDetails || apt?.vehicleInfo || null;
+        const statusRaw = (apt?.status || apt?.appointmentStatus || apt?.currentStatus || 'SCHEDULED').toString().toUpperCase();
+        const appointmentDate = apt?.appointmentDate || apt?.scheduledDate || apt?.date || null;
+        const appointmentTime = apt?.appointmentTime || apt?.scheduledTime || apt?.time || null;
+        const employeeName = apt?.employeeName || apt?.employee || apt?.assignedEmployee || null;
+        const estimatedDuration = apt?.estimatedDuration || (service?.duration ? `${service.duration} min` : 'N/A');
+        const priceRaw = apt?.price ?? service?.price ?? null;
+        const priceFormatted = priceRaw === null || priceRaw === undefined
+            ? 'N/A'
+            : typeof priceRaw === 'number'
+                ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(priceRaw)
+                : String(priceRaw);
+
+        return {
+            ...apt,
+            service,
+            vehicle,
+            status: statusRaw,
+            date: formatDisplayDate(appointmentDate),
+            time: formatDisplayTime(appointmentTime),
+            employee: employeeName || 'Not assigned yet',
+            estimatedDuration,
+            price: priceFormatted,
+        };
+    };
 
     useEffect(() => {
         const load = async () => {
@@ -33,9 +99,59 @@ export default function AppointmentsPage() {
 
                 const list = await getAppointmentsByCustomer(Number(customerId));
                 console.debug('appointments: backend returned', list);
-                const upcoming = (list || []).filter((a: any) => a.status === 'SCHEDULED');
-                const inProgress = (list || []).filter((a: any) => a.status === 'IN_PROGRESS' || a.status === 'PAUSED');
-                const completed = (list || []).filter((a: any) => a.status === 'COMPLETED' || a.status === 'CANCELLED');
+
+                // Enrich appointments with employee details from employee service and vehicle info from customer service
+                const enrichedList = await Promise.all((list || []).map(async (apt: any) => {
+                    const merged = { ...apt };
+                    
+                    // Fetch employee details from employee service
+                    const needsEmployee = !apt.employee && !apt.employeeName && !apt.assignedEmployee && !apt.employeeId;
+                    if (needsEmployee || apt.employeeId) {
+                        try {
+                            const employee = await getEmployeeForAppointment(apt.id);
+                            if (employee) {
+                                merged.employeeName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
+                                merged.employee = merged.employeeName || 'Not assigned yet';
+                                merged.employeeId = employee.id;
+                                merged.employeePhone = employee.phoneNumber;
+                                merged.employeeJobTitle = employee.jobTitle;
+                            }
+                        } catch (e) {
+                            console.warn('appointments: failed to fetch employee from employee service for appointment', apt.id, e);
+                        }
+                    }
+                    
+                    // Fetch vehicle details from customer service if missing
+                    const needsVehicle = !apt.vehicle || (!apt.vehicle.make && !apt.vehicle.model && !apt.vehicle.name);
+                    if (needsVehicle && (apt.vehicleId || apt.vehicle_id)) {
+                        try {
+                            const cust = await getCustomerWithEmployee(Number(customerId), apt.id);
+                            if (cust && Array.isArray(cust.vehicles) && cust.vehicles.length > 0) {
+                                const vId = apt.vehicle?.id || apt.vehicleId || apt.vehicle_id;
+                                let found = null;
+                                if (vId) found = cust.vehicles.find((v: any) => String(v.id) === String(vId));
+                                if (!found && apt.vehicle && apt.vehicle.plate) {
+                                    found = cust.vehicles.find((v: any) => v.plate === apt.vehicle.plate);
+                                }
+                                if (found) {
+                                    merged.vehicle = found;
+                                } else if (cust.vehicles.length > 0) {
+                                    // Fallback: use first vehicle if ID doesn't match
+                                    merged.vehicle = cust.vehicles[0];
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('appointments: failed to fetch vehicle from customer service for appointment', apt.id, e);
+                        }
+                    }
+                    
+                    return merged;
+                }));
+
+                const normalized = (enrichedList || []).map(normaliseAppointment);
+                const upcoming = normalized.filter((a: any) => a.status === 'SCHEDULED');
+                const inProgress = normalized.filter((a: any) => a.status === 'IN_PROGRESS' || a.status === 'PAUSED');
+                const completed = normalized.filter((a: any) => a.status === 'COMPLETED' || a.status === 'CANCELLED' || a.status === 'CANCELLED_BY_CUSTOMER');
                 setAppointments({ upcoming, inProgress, completed });
             } catch (e) {
                 console.error('Failed to load appointments', e);
@@ -69,8 +185,12 @@ export default function AppointmentsPage() {
     const vehicleLabelFor = (vehicle: any) => {
         if (typeof vehicle === 'string') return vehicle;
         if (!vehicle) return 'Unknown Vehicle';
-        if (vehicle.make) return `${vehicle.make} ${vehicle.model || ''}`.trim();
-        return vehicle.name || 'Unknown Vehicle';
+        if (vehicle.make && vehicle.model) return `${vehicle.make} ${vehicle.model}`.trim();
+        if (vehicle.make) return vehicle.make;
+        if (vehicle.model) return vehicle.model;
+        if (vehicle.name) return vehicle.name;
+        if (vehicle.plate) return `Vehicle (${vehicle.plate})`;
+        return 'Unknown Vehicle';
     };
 
     const vehicleInitialFor = (vehicle: any) => {
@@ -101,9 +221,10 @@ export default function AppointmentsPage() {
                 const customerId = user.id || user.userId || user.customerId;
                 if (customerId) {
                     const list = await getAppointmentsByCustomer(Number(customerId));
-                    const upcoming = (list || []).filter((a: any) => a.status === 'SCHEDULED');
-                    const inProgress = (list || []).filter((a: any) => a.status === 'IN_PROGRESS' || a.status === 'PAUSED');
-                    const completed = (list || []).filter((a: any) => a.status === 'COMPLETED' || a.status === 'CANCELLED');
+                    const normalized = (list || []).map(normaliseAppointment);
+                    const upcoming = normalized.filter((a: any) => a.status === 'SCHEDULED');
+                    const inProgress = normalized.filter((a: any) => a.status === 'IN_PROGRESS' || a.status === 'PAUSED');
+                    const completed = normalized.filter((a: any) => a.status === 'COMPLETED' || a.status === 'CANCELLED' || a.status === 'CANCELLED_BY_CUSTOMER');
                     setAppointments({ upcoming, inProgress, completed });
                 }
             }
