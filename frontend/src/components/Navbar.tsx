@@ -169,14 +169,15 @@ export default function Navbar() {
           {/* Navigation Links */}
           <div className="hidden md:flex items-center space-x-8">
             {/* Role-based Dashboard link */}
-            {user?.role?.toUpperCase() === "EMPLOYEE" ? (
+            {user?.role?.toUpperCase() === "EMPLOYEE" && (
               <a
                 href="/Dashboard/employee"
                 className={getNavLinkClass("/Dashboard/employee")}
               >
                 Dashboard
               </a>
-            ) : (
+            )}
+            {(!user?.role || (user?.role?.toUpperCase() !== "ADMIN" && user?.role?.toUpperCase() !== "EMPLOYEE")) && (
               <a href="/Dashboard" className={getNavLinkClass("/Dashboard")}>
                 Dashboard
               </a>
@@ -201,7 +202,7 @@ export default function Navbar() {
                   href="/Dashboard/admin/reports"
                   className={getNavLinkClass("/Dashboard/admin/reports")}
                 >
-                  Reports
+                  Dashboard
                 </a>
               </>
             )}
