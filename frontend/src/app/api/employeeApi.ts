@@ -193,8 +193,6 @@ export const enrichAssignmentsWithDetails = async (
                     
                     // If customer service is not available, use default values
                     if (!appointmentDetails) {
-                        // If appointment details can't be fetched, don't invent today's date — leave date fields null
-                        // so the schedule page doesn't incorrectly show the appointment as occurring today.
                         return {
                             ...assignment,
                             id: `ASS-${assignment.id}`,
@@ -204,7 +202,7 @@ export const enrichAssignmentsWithDetails = async (
                             vehicle: 'N/A',
                             service: 'N/A',
                             status: assignment.status,
-                            assignedDate: null,
+                            assignedDate: new Date().toISOString().split('T')[0],
                             priority: 'Medium',
                             estimatedDuration: 'N/A',
                             appointmentDate: null,
@@ -227,7 +225,7 @@ export const enrichAssignmentsWithDetails = async (
                             : 'Unknown Vehicle',
                         service: appointmentDetails.service?.name || 'Unknown Service',
                         status: assignment.status, // Keep backend status
-                        assignedDate: appointmentDetails.appointmentDate || null,
+                        assignedDate: appointmentDetails.appointmentDate || new Date().toISOString().split('T')[0],
                         priority: 'Medium', // Can be added to backend later
                         estimatedDuration: appointmentDetails.estimatedDuration || 'N/A',
                         appointmentDate: appointmentDetails.appointmentDate,
@@ -244,9 +242,7 @@ export const enrichAssignmentsWithDetails = async (
                         vehicle: 'N/A',
                         service: 'N/A',
                         status: assignment.status,
-                        assignedDate: null,
-                        appointmentDate: null,
-                        appointmentTime: null,
+                        assignedDate: new Date().toISOString().split('T')[0],
                         priority: 'Medium',
                         estimatedDuration: 'N/A',
                     };
