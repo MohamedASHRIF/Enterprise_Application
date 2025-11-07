@@ -1,0 +1,29 @@
+apiVersion: skaffold/v3alpha1
+kind: Config
+metadata:
+  name: enterprise-application
+
+build:
+  local:
+    useDockerCLI: true
+    push: false
+  artifacts:
+    - image: enterprise-admin:dev
+      context: admin
+    - image: enterprise-auth:dev
+      context: auth/authentication
+    - image: enterprise-notification:dev
+      context: Backend/notification-system
+    - image: enterprise-customer:dev
+      context: Customer_Service/customer_service
+    - image: enterprise-employee:dev
+      context: employee-service
+    - image: enterprise-chatbot:dev
+      context: chatbot-backend
+    - image: enterprise-frontend:dev
+      context: frontend
+
+deploy:
+  kubectl:
+    manifests:
+      - k8s/**.yml
