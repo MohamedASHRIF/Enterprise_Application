@@ -24,6 +24,7 @@ public class Appointment {
 
     @ManyToOne
     @JoinColumn(name = "vehicle_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonBackReference
     private Vehicle vehicle;
 
     @ManyToOne

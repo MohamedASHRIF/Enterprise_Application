@@ -28,6 +28,7 @@ public class CustomerPublicController {
                 .map(c -> {
                     CustomerSummaryDto dto = new CustomerSummaryDto();
                     dto.setId(c.getId());
+                    dto.setUserId(c.getUserId());
                     dto.setName(c.getName());
                     dto.setEmail(c.getEmail());
                     dto.setPhone(c.getPhone());

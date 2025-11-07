@@ -14,6 +14,19 @@ public class VehicleService {
     private final VehicleRepository vehicleRepository;
 
     public Vehicle addVehicle(Vehicle vehicle) {
+        // If a plate was provided, reject duplicate plates with 409 to give a clear, user-friendly error
+        if (vehicle.getPlate() != null && !vehicle.getPlate().isBlank()) {
+            // normalize plate check (trim) — repository method handles exact match
+            String plate = vehicle.getPlate().trim();
+            if (vehicleRepository.existsByPlate(plate)) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.CONFLICT,
+                        "A vehicle with this plate already exists"
+                );
+            }
+            vehicle.setPlate(plate);
+        }
+
         return vehicleRepository.save(vehicle);
     }
 

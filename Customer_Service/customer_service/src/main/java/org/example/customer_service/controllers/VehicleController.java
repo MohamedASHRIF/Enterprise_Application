@@ -16,6 +16,7 @@ public class VehicleController {
 
     @PostMapping
     public Vehicle addVehicle(@RequestBody Vehicle vehicle) {
+        // Accept vehicles without VIN now (nullable). Save directly.
         return vehicleService.addVehicle(vehicle);
     }
 

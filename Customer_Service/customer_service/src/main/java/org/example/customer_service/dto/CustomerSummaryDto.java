@@ -11,6 +11,7 @@ import java.util.List;
 @AllArgsConstructor
 public class CustomerSummaryDto {
     private Long id;
+    private Long userId;
     private String name;
     private String email;
     private String phone;
