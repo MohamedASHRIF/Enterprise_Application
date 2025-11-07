@@ -5,9 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.customer_service.entities.Appointment;
 import org.example.customer_service.models.AppointmentStatus;
 import org.example.customer_service.repositories.AppointmentRepository;
+import org.example.customer_service.repositories.ServiceRepository;
+import org.example.customer_service.repositories.VehicleRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -22,6 +26,8 @@ public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
     private final RestTemplate restTemplate;
+    private final VehicleRepository vehicleRepository;
+    private final ServiceRepository serviceRepository;
 
     @Value("${employee.service.url:http://localhost:8070}")
     private String employeeServiceUrl;
@@ -33,6 +39,22 @@ public class AppointmentService {
      * and do not prevent the appointment from being saved.
      */
     public Appointment bookAppointment(Appointment appointment) {
+        // Resolve vehicle and service references from ids (client posts { vehicle: { id }, service: { id } })
+        if (appointment.getVehicle() == null || appointment.getVehicle().getId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "vehicle.id is required in payload");
+        }
+        if (appointment.getService() == null || appointment.getService().getId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "service.id is required in payload");
+        }
+
+        Long vehicleId = appointment.getVehicle().getId();
+        Long serviceId = appointment.getService().getId();
+
+        appointment.setVehicle(vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vehicle not found with id: " + vehicleId)));
+        appointment.setService(serviceRepository.findById(serviceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Service not found with id: " + serviceId)));
+
         appointment.setStatus(AppointmentStatus.SCHEDULED);
         appointment.setCreatedAt(LocalDateTime.now());
         appointment.setUpdatedAt(LocalDateTime.now());
@@ -60,8 +82,8 @@ public class AppointmentService {
     }
 
     public Appointment updateAppointmentStatus(Long id, AppointmentStatus status) {
-        Appointment appointment = appointmentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+    Appointment appointment = appointmentRepository.findById(id)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found with id: " + id));
         appointment.setStatus(status);
         appointment.setUpdatedAt(LocalDateTime.now());
         return appointmentRepository.save(appointment);
