@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
+import { getAppointmentsByCustomer, getVehicles } from "@/app/api/customerApi";
 
 // Backend Integration: Replace with real API calls
 // GET /api/appointments/upcoming
@@ -9,6 +10,7 @@ import Navbar from "@/components/Navbar";
 
 export default function Dashboard() {
     const [userName, setUserName] = useState('User');
+    const [userId, setUserId] = useState<number | null>(null);
     const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
     const [newVehicle, setNewVehicle] = useState({
         make: '',
@@ -16,84 +18,158 @@ export default function Dashboard() {
         year: '',
         plate: ''
     });
+    const [isLoading, setIsLoading] = useState(true);
+    const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
+    const [statusCounts, setStatusCounts] = useState({
+        scheduled: 0,
+        inProgress: 0,
+        completed: 0
+    });
+    const [vehicles, setVehicles] = useState<any[]>([]);
+
+    const parseDatePreserveLocal = (input?: string | Date | null): Date | null => {
+        if (!input) return null;
+        if (input instanceof Date) return new Date(input.getFullYear(), input.getMonth(), input.getDate());
+        const str = String(input);
+        if (!str) return null;
+        const [datePart] = str.split('T');
+        const parts = datePart.split('-');
+        if (parts.length >= 3) {
+            const year = Number(parts[0]);
+            const month = Number(parts[1]) - 1;
+            const day = Number(parts[2].substring(0, 2));
+            if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+                return new Date(year, month, day);
+            }
+        }
+        const fallback = new Date(str);
+        return Number.isNaN(fallback.getTime()) ? null : new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+    };
+
+    const formatDisplayTime = (time?: string | null) => {
+        if (!time) return 'Time TBD';
+        const str = String(time);
+        if (str.toLowerCase().includes('am') || str.toLowerCase().includes('pm')) return str;
+        const [hStr, mStr] = str.split(':');
+        const hour = Number(hStr);
+        if (Number.isNaN(hour)) return str;
+        const minutes = mStr ? mStr.substring(0, 2) : '00';
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const hour12 = hour % 12 || 12;
+        return `${hour12}:${minutes} ${ampm}`;
+    };
+
+    const normaliseAppointment = (apt: any) => {
+        const service = apt?.service || apt?.serviceDetails || apt?.serviceInfo || null;
+        const vehicle = apt?.vehicle || apt?.vehicleDetails || apt?.vehicleInfo || null;
+        const statusRaw = (apt?.status || apt?.appointmentStatus || apt?.currentStatus || 'SCHEDULED').toString().toUpperCase();
+        const appointmentDate = apt?.appointmentDate || apt?.scheduledDate || apt?.date || null;
+        const appointmentTime = apt?.appointmentTime || apt?.scheduledTime || apt?.time || null;
+        const employeeName = apt?.employeeName || apt?.employee || apt?.assignedEmployee || 'Not assigned yet';
+
+        const dateObj = parseDatePreserveLocal(appointmentDate);
+
+        return {
+            ...apt,
+            service,
+            vehicle,
+            status: statusRaw,
+            dateLabel: dateObj
+                ? dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                : 'Date TBD',
+            timeLabel: formatDisplayTime(appointmentTime),
+            employee: employeeName
+        };
+    };
 
     useEffect(() => {
-        // Fetch real user data from localStorage
         const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-            try {
-                const userData = JSON.parse(storedUser);
-                const role = userData.role || 'CUSTOMER';
-                
-                // Redirect employees to their dashboard
-                if (role === 'EMPLOYEE') {
-                    window.location.href = '/Dashboard/employee';
-                    return;
-                }
-                
-            
-                
-                const name = userData.firstName && userData.lastName 
-                    ? `${userData.firstName} ${userData.lastName}` 
-                    : userData.email || 'User';
-                setUserName(name);
-            } catch (error) {
-                console.error('Error parsing user data:', error);
-                setUserName('User');
+        if (!storedUser) {
+            window.location.href = '/';
+            return;
+        }
+
+        try {
+            const userData = JSON.parse(storedUser);
+            const role = userData.role || 'CUSTOMER';
+
+            if (role === 'EMPLOYEE') {
+                window.location.href = '/Dashboard/employee';
+                return;
             }
+
+            const name = userData.firstName && userData.lastName
+                ? `${userData.firstName} ${userData.lastName}`
+                : userData.email || 'User';
+            setUserName(name);
+
+            const id = userData.id || userData.userId || userData.customerId;
+            if (!id) {
+                console.warn('Unable to resolve customer id from user payload');
+                setIsLoading(false);
+                return;
+            }
+            setUserId(id);
+
+            const fetchData = async () => {
+                setIsLoading(true);
+                try {
+                    const [appointments, vehicleList] = await Promise.all([
+                        getAppointmentsByCustomer(Number(id)),
+                        getVehicles(Number(id))
+                    ]);
+
+                    const normalized = (appointments || []).map(normaliseAppointment);
+                    const scheduled = normalized.filter((a: any) => a.status === 'SCHEDULED');
+                    const inProgress = normalized.filter((a: any) => a.status === 'IN_PROGRESS' || a.status === 'PAUSED');
+                    const completed = normalized.filter((a: any) => a.status === 'COMPLETED' || a.status === 'CANCELLED');
+
+                    const upcoming = [...scheduled]
+                        .sort((a, b) => {
+                            const da = parseDatePreserveLocal(a.appointmentDate || a.date) ?? new Date(a.createdAt || 0);
+                            const db = parseDatePreserveLocal(b.appointmentDate || b.date) ?? new Date(b.createdAt || 0);
+                            return da.getTime() - db.getTime();
+                        })
+                        .slice(0, 3);
+
+                    setUpcomingAppointments(upcoming);
+                    setStatusCounts({
+                        scheduled: scheduled.length,
+                        inProgress: inProgress.length,
+                        completed: completed.length
+                    });
+                    setVehicles(Array.isArray(vehicleList) ? vehicleList : []);
+                } catch (err) {
+                    console.error('Failed to load dashboard data', err);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            fetchData();
+        } catch (error) {
+            console.error('Error parsing user data:', error);
+            setUserName('User');
+            setIsLoading(false);
         }
     }, []);
 
-    // Mock Data - Replace with backend API calls
-    const [upcomingAppointments] = useState([
-        {
-            id: "APT-001",
-            vehicle: "Toyota Camry",
-            service: "Oil Change",
-            date: "2024-12-20",
-            time: "10:00 AM",
-            status: "Scheduled",
-            employee: "Mike Johnson"
-        },
-        {
-            id: "APT-002",
-            vehicle: "Honda Civic",
-            service: "Tire Rotation",
-            date: "2024-12-22",
-            time: "2:00 PM",
-            status: "Scheduled",
-            employee: "Sarah Williams"
-        }
-    ]);
-
-    const [statusCounts] = useState({
-        scheduled: 2,
-        inProgress: 1,
-        completed: 5
-    });
-
-    const [vehicles, setVehicles] = useState([
-        { id: 1, make: "Toyota", model: "Camry", year: "2021", plate: "ABC-1234" },
-        { id: 2, make: "Honda", model: "Civic", year: "2020", plate: "XYZ-5678" }
-    ]);
-
     const handleAddVehicle = () => {
-        if (newVehicle.make && newVehicle.model && newVehicle.year && newVehicle.plate) {
-            const newId = vehicles.length > 0 ? Math.max(...vehicles.map(v => v.id)) + 1 : 1;
-            const vehicle = {
-                id: newId,
-                make: newVehicle.make,
-                model: newVehicle.model,
-                year: newVehicle.year,
-                plate: newVehicle.plate
-            };
-            setVehicles([...vehicles, vehicle]);
-            setNewVehicle({ make: '', model: '', year: '', plate: '' });
-            setShowAddVehicleModal(false);
-            alert('Vehicle added successfully!');
-        } else {
-            alert('Please fill in all fields');
-        }
+        alert('Vehicle creation is managed via the vehicles page in this build.');
+        setShowAddVehicleModal(false);
+        setNewVehicle({ make: '', model: '', year: '', plate: '' });
+    };
+
+    const vehicleLabelFor = (vehicle: any) => {
+        if (!vehicle) return 'Unknown Vehicle';
+        if (typeof vehicle === 'string') return vehicle;
+        if (vehicle.make) return `${vehicle.make} ${vehicle.model || ''}`.trim();
+        return vehicle.name || vehicle.plate || `Vehicle ${vehicle.id || ''}`;
+    };
+
+    const vehicleInitialFor = (vehicle: any) => {
+        const label = vehicleLabelFor(vehicle);
+        return label && label.length > 0 ? label.charAt(0).toUpperCase() : '?';
     };
 
     return (
@@ -103,7 +179,7 @@ export default function Dashboard() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Welcome Section */}
                 <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-white mb-2">Welcome Back!</h1>
+                    <h1 className="text-3xl font-bold text-white mb-2">Welcome Back, {userName}!</h1>
                     <p className="text-gray-400">Monitor your vehicle services in real-time</p>
                 </div>
 
@@ -177,31 +253,41 @@ export default function Dashboard() {
                             </a>
                         </div>
 
-                        <div className="space-y-4">
-                            {upcomingAppointments.map((apt) => (
-                                <div key={apt.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-cyan-500/50 transition">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
-                                                    {apt.status}
-                                                </span>
-                                                <span className="text-gray-400 text-xs">{apt.id}</span>
+                        {isLoading ? (
+                            <div className="text-center py-12 text-gray-400">
+                                Loading upcoming appointments...
+                            </div>
+                        ) : upcomingAppointments.length > 0 ? (
+                            <div className="space-y-4">
+                                {upcomingAppointments.map((apt) => (
+                                    <div key={apt.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-cyan-500/50 transition">
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
+                                                        {apt.status}
+                                                    </span>
+                                                    <span className="text-gray-400 text-xs">#{apt.id}</span>
+                                                </div>
+                                                <h3 className="text-white font-semibold mb-1">{typeof apt.service === 'string' ? apt.service : apt.service?.name || 'Service'}</h3>
+                                                <p className="text-gray-400 text-sm">{vehicleLabelFor(apt.vehicle)}</p>
+                                                <div className="flex items-center gap-2 mt-2 text-sm text-gray-400">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-16 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-16 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                                                    </svg>
+                                                    <span>{apt.dateLabel} at {apt.timeLabel}</span>
+                                                </div>
+                                                <p className="text-cyan-400 text-sm mt-1">Assigned: {apt.employee}</p>
                                             </div>
-                                            <h3 className="text-white font-semibold mb-1">{typeof (apt.service as any) === 'string' ? (apt.service as any) : ((apt.service as any)?.name || String((apt.service as any)?.id || 'Service'))}</h3>
-                                            <p className="text-gray-400 text-sm">{apt.vehicle}</p>
-                                            <div className="flex items-center gap-2 mt-2 text-sm text-gray-400">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-16 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-16 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-                                                </svg>
-                                                <span>{apt.date} at {apt.time}</span>
-                                            </div>
-                                            <p className="text-cyan-400 text-sm mt-1">Assigned: {apt.employee}</p>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-12 text-gray-400">
+                                No upcoming appointments. Book your next service to see it here.
+                            </div>
+                        )}
 
                         <a href="/Dashboard/book-service" className="mt-4 block text-center py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-lg transition">
                             Book New Service
@@ -220,21 +306,21 @@ export default function Dashboard() {
                             </div>
 
                             <div className="space-y-3">
-                                {vehicles.map((vehicle) => (
+                                {vehicles.length > 0 ? vehicles.map((vehicle) => (
                                     <div key={vehicle.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="white" className="w-6 h-6">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m12.75 4.5H9.75m3-4.5H3.375A1.125 1.125 0 012 13.125V11.25m22.5 2.25v3.375c0 .621-.504 1.125-1.125 1.125H3.375a1.125 1.125 0 01-1.125-1.125V9.75M8.25 18.75h.375a1.125 1.125 0 001.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H8.25a1.125 1.125 0 00-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125zM8.25 3.375h6.75c.621 0 1.125.504 1.125 1.125V9.75c0 .621-.504 1.125-1.125 1.125H8.25a1.125 1.125 0 01-1.125-1.125V4.5c0-.621.504-1.125 1.125-1.125z" />
-                                                </svg>
+                                            <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center text-white font-semibold">
+                                                {vehicleInitialFor(vehicle)}
                                             </div>
                                             <div className="flex-1">
-                                                <p className="text-white font-medium">{vehicle.make} {vehicle.model}</p>
-                                                <p className="text-gray-400 text-sm">{vehicle.year} • {vehicle.plate}</p>
+                                                <p className="text-white font-medium">{vehicleLabelFor(vehicle)}</p>
+                                                <p className="text-gray-400 text-sm">{vehicle.year || ''} {vehicle.plate ? `• ${vehicle.plate}` : ''}</p>
                                             </div>
                                         </div>
                                     </div>
-                                ))}
+                                )) : (
+                                    <p className="text-gray-400 text-sm">No vehicles found. Add a vehicle to book services faster.</p>
+                                )}
                             </div>
 
                             <button 
@@ -297,65 +383,15 @@ export default function Dashboard() {
                                 </svg>
                             </button>
                         </div>
-                        
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-gray-400 text-sm mb-2">Make</label>
-                                <input
-                                    type="text"
-                                    value={newVehicle.make}
-                                    onChange={(e) => setNewVehicle({...newVehicle, make: e.target.value})}
-                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
-                                    placeholder="e.g., Toyota"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-gray-400 text-sm mb-2">Model</label>
-                                <input
-                                    type="text"
-                                    value={newVehicle.model}
-                                    onChange={(e) => setNewVehicle({...newVehicle, model: e.target.value})}
-                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
-                                    placeholder="e.g., Camry"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-gray-400 text-sm mb-2">Year</label>
-                                <input
-                                    type="text"
-                                    value={newVehicle.year}
-                                    onChange={(e) => setNewVehicle({...newVehicle, year: e.target.value})}
-                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
-                                    placeholder="e.g., 2021"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-gray-400 text-sm mb-2">License Plate</label>
-                                <input
-                                    type="text"
-                                    value={newVehicle.plate}
-                                    onChange={(e) => setNewVehicle({...newVehicle, plate: e.target.value})}
-                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
-                                    placeholder="e.g., ABC-1234"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 mt-6">
+                        <p className="text-gray-400 text-sm">
+                            Vehicle management is handled in the dedicated Vehicles section. Please use the Manage link above to add or edit vehicles.
+                        </p>
+                        <div className="flex justify-end mt-6">
                             <button
-                                onClick={() => {
-                                    setShowAddVehicleModal(false);
-                                    setNewVehicle({ make: '', model: '', year: '', plate: '' });
-                                }}
-                                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition"
+                                onClick={() => setShowAddVehicleModal(false)}
+                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition"
                             >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleAddVehicle}
-                                className="flex-1 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-lg transition"
-                            >
-                                Add Vehicle
+                                Close
                             </button>
                         </div>
                     </div>
