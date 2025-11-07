@@ -69,8 +69,13 @@ export const bookAppointment = async (payload: any) => {
 
 export const getAppointmentsByCustomer = async (customerId: number) => {
     try {
-        const res = await customerApi.get<ApiResponse<any[]>>(`/appointments/customer/${customerId}`);
-        return res.data?.data || [];
+        const res = await customerApi.get<any>(`/appointments/customer/${customerId}`);
+        // Support two response shapes:
+        // 1) ApiResponse<T> -> { success?, data?: T, message? }
+        // 2) raw array -> [ { ...appointment }, ... ]
+        if (res.data && Array.isArray(res.data)) return res.data;
+        if (res.data && res.data.data && Array.isArray(res.data.data)) return res.data.data;
+        return [];
     } catch (err) {
         console.error('getAppointmentsByCustomer error', err);
         return [];
