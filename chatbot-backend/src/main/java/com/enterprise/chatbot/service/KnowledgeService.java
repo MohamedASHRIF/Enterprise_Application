@@ -3,6 +3,7 @@ package com.enterprise.chatbot.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 
@@ -360,6 +361,27 @@ public class KnowledgeService {
         }
 
         return Collections.emptyList();
+    }
+
+    // ---------------- OPTIONAL: Use CustomerServiceClient (additive helper) ----------------
+    @Autowired(required = false)
+    private CustomerServiceClient customerServiceClient;
+
+    /**
+     * Helper that delegates to the new CustomerServiceClient when available.
+     * This method is additive and will return an empty list if the client is
+     * not present or an error occurs.
+     */
+    public List<String> fetchSlotsFromCustomerService(String dateIso, Long serviceId) {
+        try {
+            if (customerServiceClient == null)
+                return Collections.emptyList();
+            Integer sid = serviceId != null ? serviceId.intValue() : null;
+            List<String> slots = customerServiceClient.getAvailableSlots(dateIso, sid);
+            return slots != null ? slots : Collections.emptyList();
+        } catch (Exception ex) {
+            return Collections.emptyList();
+        }
     }
 
     // ---------------- DOMAIN RESTRICTION ----------------
