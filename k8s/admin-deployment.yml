@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin
+  namespace: enterprise-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin
+  template:
+    metadata:
+      labels:
+        app: admin
+    spec:
+      containers:
+      - name: admin
+        image: enterprise-admin:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+          - containerPort: 8082
+        env:
+          - name: SPRING_DATASOURCE_URL
+            value: "jdbc:postgresql://ep-raspy-cherry-ahvd3mbd-pooler.c-3.us-east-1.aws.neon.tech:5432/neondb?sslmode=require&channel_binding=require"
+          - name: SPRING_DATASOURCE_USERNAME
+            value: "neondb_owner"
+          - name: SPRING_DATASOURCE_PASSWORD
+            value: "npg_QMq8Be5whTDA"
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8082
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8082
+          initialDelaySeconds: 30
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin
+  namespace: enterprise-dev
+spec:
+  selector:
+    app: admin
+  ports:
+    - protocol: TCP
+      port: 8082
+      targetPort: 8082
+      nodePort: 31081
+  type: NodePort
+
+
