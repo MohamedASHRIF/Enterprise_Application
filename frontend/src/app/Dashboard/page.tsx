@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
-import { getAppointmentsByCustomer, getVehicles } from "@/app/api/customerApi";
+import { getMyAppointments, getMyVehicles } from "@/app/api/customerApi";
 
 // Backend Integration: Replace with real API calls
 // GET /api/appointments/upcoming
@@ -105,18 +105,19 @@ export default function Dashboard() {
 
             const id = userData.id || userData.userId || userData.customerId;
             if (!id) {
-                console.warn('Unable to resolve customer id from user payload');
-                setIsLoading(false);
-                return;
+                // still continue but fetch using authenticated /me endpoints
+                console.warn('Customer id not found in user payload; falling back to authenticated /me endpoints');
+            } else {
+                setUserId(id);
             }
-            setUserId(id);
 
             const fetchData = async () => {
                 setIsLoading(true);
                 try {
+                    // Use authenticated endpoints to avoid relying on a separate customerId
                     const [appointments, vehicleList] = await Promise.all([
-                        getAppointmentsByCustomer(Number(id)),
-                        getVehicles(Number(id))
+                        getMyAppointments(),
+                        getMyVehicles()
                     ]);
 
                     const normalized = (appointments || []).map(normaliseAppointment);

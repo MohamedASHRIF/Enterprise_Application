@@ -14,5 +14,5 @@ public class VehicleSummaryDto {
     private int year;
     private String color;
     private String plate;
-    private Long customerId;
+    private Long userId;
 }

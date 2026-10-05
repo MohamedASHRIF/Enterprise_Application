@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react";
-import { getVehicles, deleteVehicle } from '@/app/api/customerApi';
+import { getMyVehicles, deleteVehicle } from '@/app/api/customerApi';
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import VehicleList from "@/components/vehicles/VehicleList";
@@ -20,30 +20,10 @@ export default function VehiclesPage() {
             setIsLoading(true);
             setError(null);
             try {
-                // Try to get customer id from stored user object in localStorage
-                let customerId: number | undefined = undefined;
-                try {
-                    const stored = localStorage.getItem('user');
-                    const user = stored ? JSON.parse(stored) : null;
-                    customerId = user?.id || user?.userId || user?.customerId;
-                } catch (e) {
-                    // ignore parse errors
-                }
-
-                // If not found, try decode JWT token payload (dev-friendly fallback)
-                if (!customerId) {
-                    try {
-                        const token = localStorage.getItem('token');
-                        if (token && token.split('.').length === 3) {
-                            const payload = JSON.parse(atob(token.split('.')[1]));
-                            customerId = payload?.sub || payload?.id || payload?.userId || payload?.customerId;
-                        }
-                    } catch (e) {
-                        // ignore
-                    }
-                }
-
-                const list = await getVehicles(customerId ? Number(customerId) : undefined);
+                // Use authenticated "me" endpoint to fetch current user's vehicles.
+                // This avoids relying on a separate Customer.id stored in localStorage
+                // which can be missing or out-of-sync.
+                const list = await getMyVehicles();
                 setVehicles(list || []);
             } catch (err: any) {
                 console.error('Failed to load vehicles', err);

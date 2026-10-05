@@ -7,6 +7,9 @@ import org.example.customer_service.services.AppointmentService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.security.Principal;
+import org.example.customer_service.entities.Customer;
+import org.example.customer_service.services.CustomerService;
 
 @RestController
 @RequestMapping("/api/appointments")
@@ -20,9 +23,42 @@ public class AppointmentController {
         return appointmentService.bookAppointment(appointment);
     }
 
+    @Deprecated
     @GetMapping("/customer/{customerId}")
     public List<Appointment> getAppointmentsByCustomer(@PathVariable Long customerId) {
-        return appointmentService.getAppointmentsByCustomer(customerId);
+        // Deprecated: kept for backward compatibility. New callers should use /user/{userId} or /me.
+        // This endpoint attempts to find appointments where user_id equals the supplied id
+        return appointmentService.getAppointmentsByUserId(customerId);
+    }
+
+    /**
+     * Return appointments for the currently authenticated user.
+     * This endpoint reads the application user id from the security Principal and
+     * resolves the linked Customer record (via userId) to fetch appointments.
+     */
+    @GetMapping("/me")
+    public List<Appointment> getMyAppointments(Principal principal) {
+        if (principal == null || principal.getName() == null) {
+            throw new RuntimeException("Unauthenticated");
+        }
+        Long userId;
+        try {
+            userId = Long.parseLong(principal.getName());
+        } catch (NumberFormatException nfe) {
+            throw new RuntimeException("Unexpected principal name format; expected numeric user id");
+        }
+
+        return appointmentService.getAppointmentsByUserId(userId);
+    }
+
+    /**
+     * Return appointments for a given application user id. This is a convenience
+     * endpoint for other services which have the application user id available
+     * and do not want to resolve the Customer.id themselves.
+     */
+    @GetMapping("/user/{userId}")
+    public List<Appointment> getAppointmentsByUserId(@PathVariable Long userId) {
+        return appointmentService.getAppointmentsByUserId(userId);
     }
 
     @PutMapping("/{id}/status")

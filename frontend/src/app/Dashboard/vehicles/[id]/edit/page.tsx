@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { getVehicles, updateVehicle } from '@/app/api/customerApi';
+import { getMyVehicles, updateVehicle } from '@/app/api/customerApi';
 
 export default function EditVehiclePage() {
   const router = useRouter();
@@ -26,16 +26,9 @@ export default function EditVehiclePage() {
     const load = async () => {
       setIsLoading(true);
       setError(null);
-      try {
-        // find customer id from localStorage
-        let customerId: number | undefined = undefined;
         try {
-          const stored = localStorage.getItem('user');
-          const user = stored ? JSON.parse(stored) : null;
-          customerId = user?.id || user?.userId || user?.customerId;
-        } catch (e) {}
-
-        const list = await getVehicles(customerId ? Number(customerId) : undefined);
+          // Use authenticated endpoint to fetch current user's vehicles.
+          const list = await getMyVehicles();
         const found = (list || []).find((v: any) => Number(v.id) === id);
         if (!found) {
           setError('Vehicle not found');
@@ -49,7 +42,7 @@ export default function EditVehiclePage() {
           plate: found.plate || '',
           color: found.color || '',
           VIN: found.VIN || found.vin || '',
-          customerId: found.customerId || found.customer?.id || customerId || null
+          customerId: found.customerId || found.customer?.id || null
         });
       } catch (err: any) {
         console.error('Failed to load vehicle', err);

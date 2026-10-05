@@ -2,11 +2,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { getAppointmentsByCustomer } from "@/app/api/customerApi";
+import { getAppointmentsByCustomer, getMyAppointments, getMyVehicles } from "@/app/api/customerApi";
 
 interface HistoryItem {
     id: string;
     date: string;
+    dateObj?: Date | null;
     vehicle: any;
     services: string[];
     cost: number | null;
@@ -63,69 +64,62 @@ export default function ServiceHistoryPage() {
             return;
         }
 
-        try {
-            const user = JSON.parse(storedUser);
-            const customerId = user.id || user.userId || user.customerId;
-            if (!customerId) {
-                console.warn('Unable to resolve customer id for history page');
+        const load = async () => {
+            setIsLoading(true);
+            try {
+                // Prefer authenticated "me" endpoint. Fallbacks exist in the API client but
+                // using /appointments/me avoids relying on a separate customerId stored in localStorage.
+                const appointments = await getMyAppointments();
+                // optionally fetch vehicles for local enrichment if needed (not strictly required here)
+                const vehicles = await getMyVehicles();
+
+                const completed = (appointments || []).filter((apt: any) => {
+                    const status = (apt?.status || apt?.appointmentStatus || '').toString().toUpperCase();
+                    return ['COMPLETED', 'CANCELLED', 'CANCELLED_BY_CUSTOMER'].includes(status);
+                });
+
+                const mapped: HistoryItem[] = completed.map((apt: any) => {
+                    const service = apt?.service || apt?.serviceDetails || apt?.serviceInfo || {};
+                    const duration = service?.duration
+                        ? `${service.duration}${typeof service.duration === 'number' ? ' min' : ''}`
+                        : 'Duration N/A';
+                    const price = service?.price ?? apt?.price ?? null;
+                    const parsedDate = parseDatePreserveLocal(apt?.appointmentDate || apt?.date || apt?.createdAt);
+                    const dateLabel = parsedDate
+                        ? parsedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                        : 'Date TBD';
+                    const technician = apt?.employeeName || apt?.assignedEmployee || 'Technician TBA';
+                    const serviceName = service?.name || apt?.serviceName || 'Service';
+
+                    const generatedId = apt.id ? String(apt.id) : `APT-${Math.random().toString(36).slice(2, 10)}`;
+
+                    return {
+                        id: generatedId,
+                        date: dateLabel,
+                        dateObj: parsedDate,
+                        vehicle: apt?.vehicle || apt?.vehicleDetails || apt?.vehicleInfo || null,
+                        services: Array.isArray(apt?.services)
+                            ? apt.services
+                            : [serviceName],
+                        cost: typeof price === 'number' ? price : Number(price) || null,
+                        status: (apt?.status || apt?.appointmentStatus || 'COMPLETED').toString().toUpperCase(),
+                        technician,
+                        duration,
+                        rating: apt?.feedback?.rating ?? null,
+                        hasFeedback: Boolean(apt?.feedback)
+                    };
+                });
+
+                setServices(mapped);
+            } catch (err) {
+                console.error('Failed to load service history', err);
+                setServices([]);
+            } finally {
                 setIsLoading(false);
-                return;
             }
+        };
 
-            const load = async () => {
-                setIsLoading(true);
-                try {
-                    const appointments = await getAppointmentsByCustomer(Number(customerId));
-                    const completed = (appointments || []).filter((apt: any) => {
-                        const status = (apt?.status || apt?.appointmentStatus || '').toString().toUpperCase();
-                        return ['COMPLETED', 'CANCELLED', 'CANCELLED_BY_CUSTOMER'].includes(status);
-                    });
-
-                    const mapped: HistoryItem[] = completed.map((apt: any) => {
-                        const service = apt?.service || apt?.serviceDetails || apt?.serviceInfo || {};
-                        const duration = service?.duration
-                            ? `${service.duration}${typeof service.duration === 'number' ? ' min' : ''}`
-                            : 'Duration N/A';
-                        const price = service?.price ?? apt?.price ?? null;
-                        const parsedDate = parseDatePreserveLocal(apt?.appointmentDate || apt?.date || apt?.createdAt);
-                        const dateLabel = parsedDate
-                            ? parsedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-                            : 'Date TBD';
-                        const technician = apt?.employeeName || apt?.assignedEmployee || 'Technician TBA';
-                        const serviceName = service?.name || apt?.serviceName || 'Service';
-
-                        const generatedId = apt.id ? String(apt.id) : `APT-${Math.random().toString(36).slice(2, 10)}`;
-
-                        return {
-                            id: generatedId,
-                            date: dateLabel,
-                            vehicle: apt?.vehicle || apt?.vehicleDetails || apt?.vehicleInfo || null,
-                            services: Array.isArray(apt?.services)
-                                ? apt.services
-                                : [serviceName],
-                            cost: typeof price === 'number' ? price : Number(price) || null,
-                            status: (apt?.status || apt?.appointmentStatus || 'COMPLETED').toString().toUpperCase(),
-                            technician,
-                            duration,
-                            rating: apt?.feedback?.rating ?? null,
-                            hasFeedback: Boolean(apt?.feedback)
-                        };
-                    });
-
-                    setServices(mapped);
-                } catch (err) {
-                    console.error('Failed to load service history', err);
-                    setServices([]);
-                } finally {
-                    setIsLoading(false);
-                }
-            };
-
-            load();
-        } catch (error) {
-            console.error('Error parsing user data for history page', error);
-            setIsLoading(false);
-        }
+        load();
     }, []);
 
     const handleViewDetails = (id: string) => {
@@ -235,21 +229,25 @@ export default function ServiceHistoryPage() {
                                             {/* Date Column */}
                                             <div className="text-center min-w-[80px]">
                                                 <p className="text-cyan-400 font-bold text-2xl mb-1">
-                                                    {new Date(service.date).toLocaleDateString('en-US', { day: 'numeric' })}
+                                                    {(service.dateObj && !Number.isNaN(new Date(service.dateObj).getTime()))
+                                                        ? String(service.dateObj.getDate())
+                                                        : (service.date ? new Date(service.date).toLocaleDateString('en-US', { day: 'numeric' }) : '')}
                                                 </p>
                                                 <p className="text-gray-400 text-xs">
-                                                    {new Date(service.date).toLocaleDateString('en-US', { month: 'short' })}
+                                                    {(service.dateObj && !Number.isNaN(new Date(service.dateObj).getTime()))
+                                                        ? service.dateObj.toLocaleDateString('en-US', { month: 'short' })
+                                                        : (service.date ? new Date(service.date).toLocaleDateString('en-US', { month: 'short' }) : '')}
                                                 </p>
                                             </div>
 
                                             {/* Vehicle Icon */}
                                             <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center text-white text-xl font-bold">
-                                                {service.vehicle.split(' ')[0].charAt(0)}
+                                                {vehicleInitialFor(service.vehicle)}
                                             </div>
 
                                             {/* Details */}
                                             <div className="flex-1">
-                                                <h3 className="text-white font-bold text-lg mb-2">{service.vehicle}</h3>
+                                                <h3 className="text-white font-bold text-lg mb-2">{vehicleLabelFor(service.vehicle)}</h3>
                                                 <div className="flex flex-wrap items-center gap-2 mb-2">
                                                     {service.services.map((svc, idx) => (
                                                         <span

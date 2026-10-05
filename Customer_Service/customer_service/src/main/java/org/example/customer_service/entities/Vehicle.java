@@ -27,8 +27,8 @@ public class    Vehicle {
     @Column(unique = true, nullable = false)
     private String plate;
 
-    @Column(name = "customer_id", nullable = false)
-    private long customerId;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     @Column(unique = true, nullable = true)
     @JsonAlias({"VIN", "vin"})

@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react";
-import { getAppointmentsByCustomer, cancelAppointment, getCustomerWithEmployee } from '@/app/api/customerApi';
+import { getMyAppointments, getMyVehicles, cancelAppointment, getCustomerWithEmployee } from '@/app/api/customerApi';
 import { getEmployeeForAppointment } from '@/app/api/employeeApi';
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
@@ -87,23 +87,12 @@ export default function AppointmentsPage() {
         const load = async () => {
             setIsLoading(true);
             try {
-                const stored = localStorage.getItem('user');
-                if (!stored) {
-                    console.debug('appointments: no localStorage user found');
-                    return setAppointments({ upcoming: [], inProgress: [], completed: [] });
-                }
-                const user = JSON.parse(stored);
-                const customerId = user.id || user.userId || user.customerId;
-                console.debug('appointments: stored user:', user, 'resolved customerId:', customerId);
-                if (!customerId) {
-                    console.debug('appointments: could not resolve customerId from localStorage.user');
-                    return setAppointments({ upcoming: [], inProgress: [], completed: [] });
-                }
-
-                const list = await getAppointmentsByCustomer(Number(customerId));
+                // Use the authenticated "me" endpoints so we don't rely on localStorage customer id
+                const list = await getMyAppointments();
+                const myVehicles = await getMyVehicles();
                 console.debug('appointments: backend returned', list);
 
-                // Enrich appointments with employee details from employee service and vehicle info from customer service
+                // Enrich appointments with employee details from employee service and vehicle info from the user's vehicles
                 const enrichedList = await Promise.all((list || []).map(async (apt: any) => {
                     const merged = { ...apt };
                     
@@ -124,33 +113,17 @@ export default function AppointmentsPage() {
                         }
                     }
                     
-                    // Fetch vehicle details from customer service if missing
+                    // Fetch vehicle details from the user's vehicles if missing
                     const needsVehicle = !apt.vehicle || (!apt.vehicle.make && !apt.vehicle.model && !apt.vehicle.name);
-                    // If vehicle details are missing, always attempt to fetch the customer's vehicles
-                    // (previous code only attempted this when a vehicleId was present; some backends
-                    // return appointments without a vehicleId but the composed customer DTO contains
-                    // the vehicle objects — causing the list to show no vehicle). We fetch by
-                    // customer + appointment id so we can match the correct vehicle when available.
-                    if (needsVehicle) {
-                        try {
-                            const cust = await getCustomerWithEmployee(Number(customerId), apt.id);
-                            if (cust && Array.isArray(cust.vehicles) && cust.vehicles.length > 0) {
-                                const vId = apt.vehicle?.id || apt.vehicleId || apt.vehicle_id;
-                                let found = null;
-                                if (vId) found = cust.vehicles.find((v: any) => String(v.id) === String(vId));
-                                if (!found && apt.vehicle && apt.vehicle.plate) {
-                                    found = cust.vehicles.find((v: any) => v.plate === apt.vehicle.plate);
-                                }
-                                if (found) {
-                                    merged.vehicle = found;
-                                } else if (cust.vehicles.length > 0) {
-                                    // Fallback: use first vehicle if ID doesn't match
-                                    merged.vehicle = cust.vehicles[0];
-                                }
-                            }
-                        } catch (e) {
-                            console.warn('appointments: failed to fetch vehicle from customer service for appointment', apt.id, e);
+                    if (needsVehicle && Array.isArray(myVehicles) && myVehicles.length > 0) {
+                        const vId = apt.vehicle?.id || apt.vehicleId || apt.vehicle_id;
+                        let found = null;
+                        if (vId) found = myVehicles.find((v: any) => String(v.id) === String(vId));
+                        if (!found && apt.vehicle && apt.vehicle.plate) {
+                            found = myVehicles.find((v: any) => v.plate === apt.vehicle.plate);
                         }
+                        if (found) merged.vehicle = found;
+                        else merged.vehicle = myVehicles[0];
                     }
                     
                     return merged;
@@ -222,20 +195,13 @@ export default function AppointmentsPage() {
         if (!confirm('Are you sure you want to cancel this appointment?')) return;
         try {
             await cancelAppointment(Number(id));
-            // Refresh
-            const stored = localStorage.getItem('user');
-            if (stored) {
-                const user = JSON.parse(stored);
-                const customerId = user.id || user.userId || user.customerId;
-                if (customerId) {
-                    const list = await getAppointmentsByCustomer(Number(customerId));
-                    const normalized = (list || []).map(normaliseAppointment);
-                    const upcoming = normalized.filter((a: any) => a.status === 'SCHEDULED');
-                    const inProgress = normalized.filter((a: any) => a.status === 'IN_PROGRESS' || a.status === 'PAUSED');
-                    const completed = normalized.filter((a: any) => a.status === 'COMPLETED' || a.status === 'CANCELLED' || a.status === 'CANCELLED_BY_CUSTOMER');
-                    setAppointments({ upcoming, inProgress, completed });
-                }
-            }
+            // Refresh using authenticated 'me' endpoint
+            const list = await getMyAppointments();
+            const normalized = (list || []).map(normaliseAppointment);
+            const upcoming = normalized.filter((a: any) => a.status === 'SCHEDULED');
+            const inProgress = normalized.filter((a: any) => a.status === 'IN_PROGRESS' || a.status === 'PAUSED');
+            const completed = normalized.filter((a: any) => a.status === 'COMPLETED' || a.status === 'CANCELLED' || a.status === 'CANCELLED_BY_CUSTOMER');
+            setAppointments({ upcoming, inProgress, completed });
             alert('Appointment cancelled');
         } catch (err) {
             console.error('Cancel failed', err);
@@ -314,9 +280,9 @@ export default function AppointmentsPage() {
                                     <div className="flex items-start justify-between mb-4">
                                         <div className="flex items-start gap-4 flex-1">
                                             {/* Vehicle Icon */}
-                                            <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center text-white text-xl font-bold">
-                                                {apt.vehicle.split(' ')[0].charAt(0)}
-                                            </div>
+                                                                    <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center text-white text-xl font-bold">
+                                                                        {vehicleInitialFor(apt.vehicle)}
+                                                                    </div>
                                             
                                             {/* Details */}
                                             <div className="flex-1">
@@ -324,7 +290,7 @@ export default function AppointmentsPage() {
                                                     <h3 className="text-white font-bold text-lg">{apt.service}</h3>
                                                     {getStatusBadge(apt.status)}
                                                 </div>
-                                                <p className="text-gray-400 text-sm mb-1">{apt.vehicle}</p>
+                                                <p className="text-gray-400 text-sm mb-1">{vehicleLabelFor(apt.vehicle)}</p>
                                                 <div className="flex items-center gap-4 text-sm text-gray-400">
                                                     <span className="flex items-center gap-1">
                                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">

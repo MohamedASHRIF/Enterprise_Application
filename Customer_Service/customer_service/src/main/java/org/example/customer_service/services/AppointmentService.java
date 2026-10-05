@@ -102,8 +102,8 @@ public class AppointmentService {
         return saved;
     }
 
-    public List<Appointment> getAppointmentsByCustomer(Long customerId) {
-        return appointmentRepository.findByCustomerId(customerId);
+    public List<Appointment> getAppointmentsByUserId(Long userId) {
+        return appointmentRepository.findByUserId(userId);
     }
 
     public Appointment updateAppointmentStatus(Long id, AppointmentStatus status) {

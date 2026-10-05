@@ -112,12 +112,31 @@ export const getAppointmentPublicById = async (id: number) => {
  */
 export const getCustomerWithEmployee = async (customerId: number, appointmentId?: number) => {
     try {
-        const q = appointmentId
-            ? `/public/customers/${customerId}/with-employee?appointmentId=${appointmentId}`
-            : `/public/customers/${customerId}`;
-        const res = await customerApi.get<any>(q);
-        // support ApiResponse or raw body
-        return res.data?.data || res.data || null;
+        // First prefer the user-id based public endpoint (safer during cutover)
+        try {
+            const userUrl = `/public/customers/user/${customerId}`;
+            const r = await customerApi.get<any>(userUrl);
+            const dto = r.data?.data || r.data || null;
+            // If caller wanted employee info for a specific appointment, and the user-based
+            // endpoint didn't include an employee, fall back to the legacy with-employee route.
+            if (appointmentId && dto && !dto.employee) {
+                try {
+                    const fallback = await customerApi.get<any>(`/public/customers/${customerId}/with-employee?appointmentId=${appointmentId}`);
+                    return fallback.data?.data || fallback.data || dto;
+                } catch (e) {
+                    // ignore and return dto
+                    return dto;
+                }
+            }
+            return dto;
+        } catch (e) {
+            // user-based endpoint not available or failed -> fall back to legacy endpoints
+            const q = appointmentId
+                ? `/public/customers/${customerId}/with-employee?appointmentId=${appointmentId}`
+                : `/public/customers/${customerId}`;
+            const res = await customerApi.get<any>(q);
+            return res.data?.data || res.data || null;
+        }
     } catch (err) {
         console.error('getCustomerWithEmployee error', err);
         return null;
@@ -156,6 +175,31 @@ export const getAppointmentStats = async () => {
     } catch (err) {
         console.error('getAppointmentStats error', err);
         return {};
+    }
+};
+
+// "Me" endpoints (use the authenticated token) ---------------------------------
+export const getMyAppointments = async () => {
+    try {
+        const res = await customerApi.get<any>(`/appointments/me`);
+        if (res.data && Array.isArray(res.data)) return res.data;
+        if (res.data && res.data.data && Array.isArray(res.data.data)) return res.data.data;
+        return [];
+    } catch (err) {
+        console.error('getMyAppointments error', err);
+        return [];
+    }
+};
+
+export const getMyVehicles = async () => {
+    try {
+        const res = await customerApi.get<any>(`/vehicles/me`);
+        if (res.data && Array.isArray(res.data)) return res.data;
+        if (res.data && res.data.data && Array.isArray(res.data.data)) return res.data.data;
+        return [];
+    } catch (err) {
+        console.error('getMyVehicles error', err);
+        return [];
     }
 };
 

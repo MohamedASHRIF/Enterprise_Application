@@ -82,6 +82,29 @@ public class CustomerServiceClient {
     public Map<String, Object> getCustomerById(Long customerId) {
         try {
             // Prefer public customer endpoint to avoid nested appointment graphs
+            // First try the new user-id based public endpoint (treating the incoming id as a userId if possible)
+            String userUrl = customerServiceUrl + "/public/customers/user/" + customerId;
+            try {
+                ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                        userUrl, HttpMethod.GET, null,
+                        new ParameterizedTypeReference<Map<String, Object>>() {}
+                );
+                Map<String, Object> body = response.getBody();
+                if (body != null && body.containsKey("data") && body.get("data") instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> inner = (Map<String, Object>) body.get("data");
+                    log.info("Fetched customer (wrapped) from Customer Service (public user) for userId={} -> {}", customerId, inner);
+                    return inner;
+                }
+                if (body != null) {
+                    log.info("Fetched customer from Customer Service (public user) for userId={} -> {}", customerId, body);
+                    return body;
+                }
+            } catch (RestClientException e) {
+                log.debug("Public user-based customer endpoint unavailable for id={} (will try legacy): {}", customerId, e.toString());
+            }
+
+            // Fallback to legacy public endpoint that accepts customer.id
             String publicUrl = customerServiceUrl + "/public/customers/" + customerId;
             try {
                 ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
@@ -98,9 +121,10 @@ public class CustomerServiceClient {
                 log.info("Fetched customer from Customer Service (public) for id={} -> {}", customerId, body);
                 return body;
             } catch (RestClientException e) {
-                log.debug("Public customer endpoint unavailable for id={} (will try legacy): {}", customerId, e.toString());
+                log.debug("Public customer endpoint unavailable for id={} (will try legacy direct): {}", customerId, e.toString());
             }
 
+            // Last resort: legacy direct customer endpoint
             String url = customerServiceUrl + "/customers/" + customerId;
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                     url, HttpMethod.GET, null,
@@ -123,6 +147,38 @@ public class CustomerServiceClient {
             return null;
         } catch (Exception e) {
             log.error("Unexpected error while fetching customer for id={}", customerId, e);
+            return null;
+        }
+    }
+
+    /**
+     * New helper: fetch customer summary by auth user id (userId).
+     * This calls /api/public/customers/user/{userId} which is preferred for the cutover.
+     */
+    public Map<String, Object> getCustomerByUserId(Long userId) {
+        try {
+            String url = customerServiceUrl + "/public/customers/user/" + userId;
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    url, HttpMethod.GET, null,
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+            Map<String, Object> body = response.getBody();
+            if (body != null && body.containsKey("data") && body.get("data") instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> inner = (Map<String, Object>) body.get("data");
+                log.info("Fetched customer (wrapped) from Customer Service (public user) for userId={} -> {}", userId, inner);
+                return inner;
+            }
+            log.info("Fetched customer from Customer Service (public user) for userId={} -> {}", userId, body);
+            return body;
+        } catch (RestClientResponseException e) {
+            log.warn("Customer service returned error for userId={} status={} body={}", userId, e.getRawStatusCode(), e.getResponseBodyAsString());
+            return null;
+        } catch (RestClientException e) {
+            log.warn("Failed to fetch customer by userId from Customer Service for userId={}: {}", userId, e.toString());
+            return null;
+        } catch (Exception e) {
+            log.error("Unexpected error while fetching customer for userId={}", userId, e);
             return null;
         }
     }

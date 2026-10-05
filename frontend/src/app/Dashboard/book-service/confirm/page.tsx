@@ -27,14 +27,9 @@ export default function ConfirmBookingPage() {
         try {
             // Backend Integration: POST /api/appointments/book
             // Build payload expected by customer-service AppointmentController.bookAppointment
-            const storedUser = localStorage.getItem('user');
-            if (!storedUser) throw new Error('User not authenticated');
-            const user = JSON.parse(storedUser);
-            const customerId = user.id || user.userId || user.customerId;
-            if (!customerId) throw new Error('Could not determine customer id from stored user');
-
+            // Do not include customerId; backend should associate the appointment with
+            // the authenticated user derived from the bearer token.
             const payload: any = {
-                customerId: customerId,
                 vehicle: { id: bookingData.vehicle.id },
                 service: { id: bookingData.service.id },
                 appointmentDate: bookingData.date,

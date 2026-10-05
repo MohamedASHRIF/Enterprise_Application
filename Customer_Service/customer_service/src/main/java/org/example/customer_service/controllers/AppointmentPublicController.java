@@ -39,26 +39,8 @@ public class AppointmentPublicController {
                 .map(app -> {
                     AppointmentSummaryDto dto = new AppointmentSummaryDto();
                     dto.setId(app.getId());
-                    dto.setCustomerId(app.getCustomerId());
-                    // Populate customer name fields from local CustomerService to avoid extra client-side calls
-                    try {
-                        if (app.getCustomerId() > 0) {
-                            customerService.getCustomerById(Long.valueOf(app.getCustomerId())).ifPresent(c -> {
-                                dto.setCustomerName(c.getName());
-                                // attempt to split first/last name
-                                if (c.getName() != null && c.getName().contains(" ")) {
-                                    int idx = c.getName().indexOf(' ');
-                                    dto.setCustomerFirstName(c.getName().substring(0, idx).trim());
-                                    dto.setCustomerLastName(c.getName().substring(idx + 1).trim());
-                                } else {
-                                    dto.setCustomerFirstName(c.getName());
-                                    dto.setCustomerLastName("");
-                                }
-                            });
-                        }
-                    } catch (Exception ignore) {
-                        // non-fatal: leave name fields null
-                    }
+                    // Use userId on appointments (no Customer table lookup in cutover)
+                    dto.setUserId(app.getUserId());
                     if (app.getVehicle() != null) {
                         VehicleSummaryDto v = new VehicleSummaryDto();
                         v.setId(app.getVehicle().getId());
@@ -67,7 +49,7 @@ public class AppointmentPublicController {
                         v.setYear(app.getVehicle().getYear());
                         v.setColor(app.getVehicle().getColor());
                         v.setPlate(app.getVehicle().getPlate());
-                        v.setCustomerId(app.getVehicle().getCustomerId());
+                        v.setUserId(app.getVehicle().getUserId());
                         dto.setVehicle(v);
                     }
                     if (app.getService() != null) {

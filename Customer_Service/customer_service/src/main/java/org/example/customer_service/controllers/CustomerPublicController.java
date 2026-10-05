@@ -52,12 +52,43 @@ public class CustomerPublicController {
                             vd.setYear(v.getYear());
                             vd.setColor(v.getColor());
                             vd.setPlate(v.getPlate());
-                            vd.setCustomerId(v.getCustomerId());
+                            vd.setUserId(v.getUserId());
                             return vd;
                         }).collect(Collectors.toList());
                         dto.setVehicles(vs);
                     }
 
+                    return ResponseEntity.ok(dto);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<?> getCustomerByUserId(@PathVariable Long userId) {
+        return customerService.getCustomerByUserId(userId)
+                .map(c -> {
+                    CustomerSummaryDto dto = new CustomerSummaryDto();
+                    dto.setId(c.getId());
+                    dto.setUserId(c.getUserId());
+                    dto.setName(c.getName());
+                    dto.setEmail(c.getEmail());
+                    dto.setPhone(c.getPhone());
+                    // vehicles may be null during cutover; include if present
+                    List<Vehicle> vehicles = c.getVehicles();
+                    if (vehicles != null) {
+                        List<VehicleSummaryDto> vs = vehicles.stream().map(v -> {
+                            VehicleSummaryDto vd = new VehicleSummaryDto();
+                            vd.setId(v.getId());
+                            vd.setMake(v.getMake());
+                            vd.setModel(v.getModel());
+                            vd.setYear(v.getYear());
+                            vd.setColor(v.getColor());
+                            vd.setPlate(v.getPlate());
+                            vd.setUserId(v.getUserId());
+                            return vd;
+                        }).collect(Collectors.toList());
+                        dto.setVehicles(vs);
+                    }
                     return ResponseEntity.ok(dto);
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -90,7 +121,7 @@ public class CustomerPublicController {
                             vd.setYear(v.getYear());
                             vd.setColor(v.getColor());
                             vd.setPlate(v.getPlate());
-                            vd.setCustomerId(v.getCustomerId());
+                            vd.setUserId(v.getUserId());
                             return vd;
                         }).collect(Collectors.toList());
                         dto.setVehicles(vs);

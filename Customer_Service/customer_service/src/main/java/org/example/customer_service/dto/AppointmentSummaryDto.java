@@ -12,7 +12,7 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class AppointmentSummaryDto {
     private Long id;
-    private Long customerId;
+    private Long userId;
     private String customerName;
     private String customerFirstName;
     private String customerLastName;

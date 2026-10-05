@@ -40,18 +40,16 @@ export default function AddVehiclePage() {
         }
 
         try {
-            // Build payload matching backend Vehicle entity
-            const stored = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
-            const user = stored ? JSON.parse(stored) : null;
-
+            // Build payload matching backend Vehicle entity. Do not rely on localStorage
+            // to determine customerId; the backend should associate the authenticated
+            // user (from the bearer token) with the created vehicle.
             const payload = {
                 make: formData.make,
                 model: formData.model,
                 year: Number(formData.year) || 0,
                 color: formData.color,
                 plate: formData.plate,
-                customerId: user?.id || user?.userId || null,
-                // Backend field name is `VIN` (uppercase) in the Vehicle entity
+                // Do not include customerId here; backend will link by authenticated user
                 VIN: formData.vin || ''
             };
 

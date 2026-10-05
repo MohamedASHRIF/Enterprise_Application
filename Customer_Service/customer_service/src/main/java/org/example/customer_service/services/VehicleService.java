@@ -30,8 +30,8 @@ public class VehicleService {
         return vehicleRepository.save(vehicle);
     }
 
-    public List<Vehicle> getVehiclesByCustomer(Long customerId) {
-        return vehicleRepository.findByCustomerId(customerId);
+    public List<Vehicle> getVehiclesByUserId(Long userId) {
+        return vehicleRepository.findByUserId(userId);
     }
 
     public Vehicle updateVehicle(Vehicle vehicle) {
